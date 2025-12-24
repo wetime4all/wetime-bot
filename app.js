@@ -24,39 +24,14 @@ const app = new App({
 
 // --- 2. HELPER FUNCTIONS ---
 
-// Generate a Daily.co Video Room
-async function createVideoRoom() {
-  const apiKey = process.env.DAILY_API_KEY;
-  if (!apiKey) {
-    console.error("Missing DAILY_API_KEY in Environment Variables");
-    return "https://daily.co"; // Fallback
-  }
-
-  try {
-    const response = await fetch("https://api.daily.co/v1/rooms", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        properties: {
-          exp: Math.round(Date.now() / 1000) + 600, // Room expires in 10 mins
-          enable_chat: true,
-          start_audio_off: false,
-          start_video_off: false
-        }
-      })
-    });
-    
-    if (!response.ok) throw new Error(`Daily API Error: ${response.statusText}`);
-    
-    const data = await response.json();
-    return data.url; // The unique video link
-  } catch (error) {
-    console.error("Failed to create room:", error);
-    return "https://daily.co"; 
-  }
+// --- HELPER: Create Jitsi Video Room (Free & Keyless) ---
+function createVideoRoom() {
+  // Generate a random unique string for the room name
+  const uniqueId = Math.random().toString(36).substring(2, 12);
+  
+  // Return a Jitsi Meet URL
+  // Format: https://meet.jit.si/WeTime-{RandomString}
+  return `https://meet.jit.si/WeTime-${uniqueId}`;
 }
 
 // Generate the Dashboard UI
