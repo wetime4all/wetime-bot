@@ -3,7 +3,10 @@ const admin = require('firebase-admin');
 require('dotenv').config();
 
 // --- 1. Initialize Firebase ---
-const serviceAccount = require('./serviceAccountKey.json');
+const serviceAccount = require('./serviceAccountKey.json'); // Local dev
+// For Render (Production), we check if the secret file exists, or handle via ENV if you preferred that route.
+// Since you used "Secret Files" in Render, this path './serviceAccountKey.json' works perfectly there too!
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -13,123 +16,127 @@ const db = admin.firestore();
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: true,
+  socketMode: true, // Auto-disabled in production if appToken is missing, but good to keep
   appToken: process.env.SLACK_APP_TOKEN
 });
 
-// --- 3. The Dashboard UI (Block Kit) ---
-// This function generates the specific UI blocks for a user
-const getDashboardBlocks = (user, coinBalance) => {
-  return [
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": `Welcome back, ${user}!`
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": `*Connection Streak:* 🔥 4 Weeks\n*Coin Balance:* 🪙 ${coinBalance}`
-      }
-    },
-    {
-      "type": "divider"
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Choose your break:*"
-      }
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "☕ Speed Coffee (1:1)",
-            "emoji": true
-          },
-          "style": "primary",
-          "action_id": "btn_speed_coffee"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "🎮 Micro-Game (Group)",
-            "emoji": true
-          },
-          "action_id": "btn_game"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "🧘 MeTime",
-            "emoji": true
-          },
-          "action_id": "btn_metime"
+// --- HELPER: Create Daily.co Room ---
+async function createVideoRoom() {
+  const apiKey = process.env.DAILY_API_KEY;
+  if (!apiKey) return "https://daily.co"; // Fallback if key missing
+
+  try {
+    const response = await fetch("https://api.daily.co/v1/rooms", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        properties: {
+          exp: Math.round(Date.now() / 1000) + 600, // Expires in 10 mins
+          enable_chat: true
         }
+      })
+    });
+    const data = await response.json();
+    return data.url; // Returns the unique room link
+  } catch (error) {
+    console.error("Daily API Error:", error);
+    return "https://daily.co";
+  }
+}
+
+// --- HELPER: Dashboard Blocks ---
+const getDashboardBlocks = (user) => {
+  return [
+    { type: "header", text: { type: "plain_text", text: `Welcome back, ${user}!` } },
+    { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
+    { type: "divider" },
+    { type: "section", text: { type: "mrkdwn", text: "*Choose your break:*" } },
+    {
+      type: "actions",
+      elements: [
+        { type: "button", text: { type: "plain_text", text: "☕ Speed Coffee (1:1)", emoji: true }, style: "primary", action_id: "btn_speed_coffee" },
+        { type: "button", text: { type: "plain_text", text: "🧘 MeTime", emoji: true }, action_id: "btn_metime" }
       ]
     }
   ];
 };
 
-// --- 4. Event: User Opens App Home ---
-app.event('app_home_opened', async ({ event, client, logger }) => {
-  try {
-    // In a real app, fetch coinBalance from Firebase here
-    const coinBalance = 450; 
+// --- EVENTS ---
 
-    // Publish the Home View
-    await client.views.publish({
-      user_id: event.user,
-      view: {
-        type: 'home',
-        callback_id: 'home_view',
-        blocks: getDashboardBlocks(event.user, coinBalance)
-      }
-    });
-  } catch (error) {
-    logger.error(error);
-  }
-});
-
-// --- 5. Command: /wetime ---
-app.command('/wetime', async ({ command, ack, respond }) => {
-  await ack(); // Acknowledge the command instantly
-
-  // Respond with the dashboard buttons inside the chat
-  await respond({
-    blocks: getDashboardBlocks(command.user_name, 450),
-    text: "Welcome to WeTime!" // Fallback text
+// 1. Home Tab
+app.event('app_home_opened', async ({ event, client }) => {
+  await client.views.publish({
+    user_id: event.user,
+    view: { type: 'home', blocks: getDashboardBlocks(event.user) }
   });
 });
 
-// --- 6. Action: Button Clicks ---
-app.action('btn_speed_coffee', async ({ body, ack, say }) => {
+// 2. Command
+app.command('/wetime', async ({ command, ack, respond }) => {
   await ack();
-  // We will build the queue logic here in Phase 3
-  await say(`You clicked Speed Coffee! <@${body.user.id}> joined the queue.`);
+  await respond({ blocks: getDashboardBlocks(command.user_name) });
 });
 
-app.action('btn_game', async ({ body, ack, say }) => {
+// 3. ACTION: Speed Coffee (THE MATCHING LOGIC)
+app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
-  await say(`Game mode selected! Looking for players...`);
+  const userId = body.user.id;
+  const queueRef = db.collection('match_queue');
+
+  // Check if anyone else is waiting
+  const snapshot = await queueRef.limit(1).get();
+
+  if (snapshot.empty) {
+    // A. Queue is empty -> Add yourself
+    await queueRef.doc(userId).set({
+      userId: userId,
+      joinedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    await client.chat.postMessage({
+      channel: userId,
+      text: "You are in the queue! 🕒 Waiting for a partner..."
+    });
+
+  } else {
+    // B. Found someone! -> Match them
+    let partnerId;
+    snapshot.forEach(doc => { partnerId = doc.id; });
+
+    // Prevent matching with self (edge case)
+    if (partnerId === userId) {
+      await client.chat.postMessage({ channel: userId, text: "You are already in the queue." });
+      return;
+    }
+
+    // Remove partner from queue
+    await queueRef.doc(partnerId).delete();
+
+    // Create Room
+    const roomUrl = await createVideoRoom();
+
+    // Notify BOTH users
+    const matchMsg = `🎉 *It's a Match!* \nClick below to join your 10-min Speed Coffee.`;
+    const blocks = [
+      { type: "section", text: { type: "mrkdwn", text: matchMsg } },
+      { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Join Video Call 📹" }, url: roomUrl, style: "primary" }] }
+    ];
+
+    // Send to You
+    await client.chat.postMessage({ channel: userId, blocks: blocks, text: "Match found!" });
+    // Send to Partner
+    await client.chat.postMessage({ channel: partnerId, blocks: blocks, text: "Match found!" });
+  }
 });
 
-app.action('btn_metime', async ({ body, ack, say }) => {
+app.action('btn_metime', async ({ body, ack, client }) => {
   await ack();
-  await say(`MeTime activated. Snoozing notifications for 1 hour. 🧘`);
+  await client.chat.postMessage({ channel: body.user.id, text: "MeTime Activated. See you in an hour! 🧘" });
 });
 
-// --- 7. Start App ---
 (async () => {
   await app.start(process.env.PORT || 3000);
   console.log('⚡️ WeTime Bot is running!');
