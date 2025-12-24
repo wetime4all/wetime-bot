@@ -3,18 +3,11 @@ const admin = require('firebase-admin');
 const http = require('http');
 require('dotenv').config();
 
-// --- 1. CONFIGURATION & SETUP ---
-
-// Initialize Firebase
-// In Render, ensure you added this as a 'Secret File' named exactly 'serviceAccountKey.json'
+// --- CONFIG ---
 const serviceAccount = require('./serviceAccountKey.json');
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
-// Initialize Slack App
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -22,189 +15,140 @@ const app = new App({
   appToken: process.env.SLACK_APP_TOKEN
 });
 
-// --- 2. HELPER FUNCTIONS ---
-
-// Change the function signature to accept userId
+// --- HELPER: Video Link Generator ---
 function createVideoRoom(userId) {
   const uniqueId = Math.random().toString(36).substring(2, 12);
   const roomName = `WeTime-${uniqueId}`;
+  
+  // !!! UPDATE THIS WITH YOUR GITHUB PAGES URL !!!
   const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
-
-  // Add &user=USER_ID to the end
+  
+  // We return the base URL here. We append &user= later in logic.
+  // Actually, let's keep it simple and handle params in the actions.
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
 
-// Generate the Dashboard UI
+// --- DASHBOARD UI ---
 const getDashboardBlocks = (user) => {
   return [
-    {
-      type: "header",
-      text: { type: "plain_text", text: `Welcome back, ${user}! 👋` }
-    },
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` }
-    },
+    { type: "header", text: { type: "plain_text", text: `Welcome back, ${user}! 👋` } },
+    { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: "*Choose your break activity:*" }
-    },
+    { type: "section", text: { type: "mrkdwn", text: "*Choose your break activity:*" } },
     {
       type: "actions",
       elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: "☕ Speed Coffee (1:1)", emoji: true },
-          style: "primary",
-          action_id: "btn_speed_coffee"
-        },
-        {
-          type: "button",
-          text: { type: "plain_text", text: "🧘 MeTime", emoji: true },
-          action_id: "btn_metime"
-        }
+        { type: "button", text: { type: "plain_text", text: "☕ Speed Coffee", emoji: true }, style: "primary", action_id: "btn_speed_coffee" },
+        { type: "button", text: { type: "plain_text", text: "🕹️ Connect 4", emoji: true }, action_id: "btn_connect4" }, // NEW BUTTON
+        { type: "button", text: { type: "plain_text", text: "🧘 MeTime", emoji: true }, action_id: "btn_metime" }
       ]
     }
   ];
 };
 
-// --- 3. SLACK EVENTS & ACTIONS ---
+// --- EVENTS ---
 
-// Event: User clicks "Home" tab in Slack
 app.event('app_home_opened', async ({ event, client }) => {
-  try {
-    await client.views.publish({
-      user_id: event.user,
-      view: {
-        type: 'home',
-        callback_id: 'home_view',
-        blocks: getDashboardBlocks(event.user)
-      }
-    });
-  } catch (error) {
-    console.error("Error publishing home view:", error);
-  }
+  await client.views.publish({
+    user_id: event.user,
+    view: { type: 'home', blocks: getDashboardBlocks(event.user) }
+  });
 });
 
-// Command: /wetime
 app.command('/wetime', async ({ command, ack, respond }) => {
   await ack();
-  await respond({
-    blocks: getDashboardBlocks(command.user_name),
-    text: "Welcome to WeTime!" // Fallback for notifications
-  });
+  await respond({ blocks: getDashboardBlocks(command.user_name) });
 });
 
-// Action: Speed Coffee (The Matching Engine)
+// --- ACTION 1: SPEED COFFEE ---
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
-  
-  const userId = body.user.id;
-  const queueRef = db.collection('match_queue');
-  const roomUrl = createVideoRoom(userId); // Pass the userId here!
-
-  try {
-    // 1. Check if anyone else is waiting
-    const snapshot = await queueRef.orderBy('joinedAt', 'asc').limit(1).get();
-    
-    let partnerId = null;
-    let partnerDocId = null;
-
-    // Filter out yourself from the snapshot results
-    snapshot.forEach(doc => {
-      if (doc.data().userId !== userId) {
-        partnerId = doc.data().userId;
-        partnerDocId = doc.id;
-      }
-    });
-
-    if (!partnerId) {
-      // A. Queue is empty (or only you are in it) -> Add/Update yourself
-      await queueRef.doc(userId).set({
-        userId: userId,
-        joinedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      await client.chat.postMessage({
-        channel: userId,
-        text: "You are in the queue! 🕒 Waiting for a partner..."
-      });
-
-    } else {
-      // B. Found a partner! -> Create Match
-      
-      // Remove partner from queue (atomic transaction recommended for prod, simple delete for MVP)
-      await queueRef.doc(partnerDocId).delete();
-      // Remove yourself if you were in there too
-      await queueRef.doc(userId).delete(); 
-
-      // Create Video Room
-      const roomUrl = await createVideoRoom();
-      const matchText = `🎉 *It's a Match!* \nClick below to join your 10-min Speed Coffee.`;
-
-      const msgBlocks = [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: matchText }
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "Join Video Call 📹" },
-              url: roomUrl,
-              style: "primary",
-              action_id: "btn_join_video"
-            }
-          ]
-        }
-      ];
-
-      // Notify User 1 (You)
-      await client.chat.postMessage({ channel: userId, blocks: msgBlocks, text: "Match Found!" });
-      
-      // Notify User 2 (Partner)
-      await client.chat.postMessage({ channel: partnerId, blocks: msgBlocks, text: "Match Found!" });
-    }
-
-  } catch (error) {
-    console.error("Matching Error:", error);
-    await client.chat.postMessage({ channel: userId, text: "Oops! Something went wrong matching you." });
-  }
+  await handleMatchmaking(body, client, 'match_queue', '');
 });
 
-// Action: MeTime
+// --- ACTION 2: CONNECT 4 (NEW) ---
+app.action('btn_connect4', async ({ body, ack, client }) => {
+  await ack();
+  await handleMatchmaking(body, client, 'game_queue', '&mode=connect4');
+});
+
+// --- SHARED MATCHMAKING LOGIC ---
+async function handleMatchmaking(body, client, collectionName, urlSuffix) {
+  const userId = body.user.id;
+  const queueRef = db.collection(collectionName);
+
+  const snapshot = await queueRef.orderBy('joinedAt', 'asc').limit(1).get();
+  let partnerId = null;
+  let partnerDocId = null;
+
+  snapshot.forEach(doc => {
+    if (doc.data().userId !== userId) {
+      partnerId = doc.data().userId;
+      partnerDocId = doc.id;
+    }
+  });
+
+  if (!partnerId) {
+    // Add to queue
+    await queueRef.doc(userId).set({
+      userId: userId,
+      joinedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await client.chat.postMessage({ channel: userId, text: "You are in the queue! 🕒 Waiting for a partner..." });
+  } else {
+    // Match found!
+    await queueRef.doc(partnerDocId).delete();
+    await queueRef.doc(userId).delete(); 
+
+    // Generate Base URL for User 1
+    const roomUrl1 = createVideoRoom(userId) + urlSuffix;
+    // Generate Base URL for User 2
+    const roomUrl2 = createVideoRoom(partnerId) + urlSuffix; // Note: In a real app, room name must be same.
+    
+    // FIX: Generate ONE room name for both
+    const uniqueId = Math.random().toString(36).substring(2, 12);
+    const roomName = `WeTime-${uniqueId}`;
+    const baseUrl = "https://wetime4all.github.io/wetime-bot/"; // UPDATE THIS
+    
+    const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}${urlSuffix}`;
+    const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}${urlSuffix}`;
+
+    const matchText = `🎉 *It's a Match!*`;
+
+    // Notify User 1
+    await client.chat.postMessage({ 
+        channel: userId, 
+        text: "Match found!",
+        blocks: [
+            { type: "section", text: { type: "mrkdwn", text: matchText } },
+            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Join Call 📹" }, url: finalUrl1, style: "primary" }] }
+        ]
+    });
+    
+    // Notify User 2
+    await client.chat.postMessage({ 
+        channel: partnerId, 
+        text: "Match found!",
+        blocks: [
+            { type: "section", text: { type: "mrkdwn", text: matchText } },
+            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Join Call 📹" }, url: finalUrl2, style: "primary" }] }
+        ]
+    });
+  }
+}
+
 app.action('btn_metime', async ({ body, ack, client }) => {
   await ack();
-  await client.chat.postMessage({
-    channel: body.user.id,
-    text: "MeTime Activated 🧘. We've snoozed matching for 1 hour. Enjoy your break!"
-  });
+  await client.chat.postMessage({ channel: body.user.id, text: "MeTime Activated 🧘. Matching snoozed." });
 });
 
-// Action: Join Video (Just acknowledges the click so Slack doesn't show a warning)
-app.action('btn_join_video', async ({ ack }) => {
-  await ack();
-});
-
-
-// --- 4. SERVER STARTUP ---
-
-// A. Health Check Server for Render (Keeps the bot alive)
+// --- SERVER ---
 const receiver = http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end('WeTime Bot is running!');
+  res.writeHead(200); res.end('WeTime Bot is running!');
 });
+receiver.listen(process.env.PORT || 3000);
 
-// B. Start Both Services
 (async () => {
-  // Start the Health Check Server on the port Render provides
-  receiver.listen(process.env.PORT || 3000);
-  
-  // Start the Slack Bot (Socket Mode handles the connection)
   await app.start();
-  
   console.log('⚡️ WeTime Bot is running!');
 })();
