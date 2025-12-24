@@ -24,14 +24,14 @@ const app = new App({
 
 // --- 2. HELPER FUNCTIONS ---
 
-// --- HELPER: Create Jitsi Video Room (Free & Keyless) ---
 function createVideoRoom() {
-  // Generate a random unique string for the room name
   const uniqueId = Math.random().toString(36).substring(2, 12);
-  
-  // Return a Jitsi Meet URL
-  // Format: https://meet.jit.si/WeTime-{RandomString}
-  return `https://meet.jit.si/WeTime-${uniqueId}`;
+  const roomName = `WeTime-${uniqueId}`;
+
+  // PASTE YOUR URL HERE
+  const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
+
+  return `${myAppUrl}?room=${roomName}`;
 }
 
 // Generate the Dashboard UI
