@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WeTime Arcade & Leaderboard</title>
+    <title>WeTime Arcade</title>
     <script src='https://meet.ffmuc.net/external_api.js'></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
@@ -12,25 +12,37 @@
         :root { --primary: #6366f1; --bg: #f8fafc; --surface: #ffffff; --text: #1e293b; }
         body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
         
-        /* OVERLAY & LAYOUT */
+        /* --- LAYOUT: SPLIT SCREEN --- */
         #call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111827; }
         #jitsi-container { width: 100%; height: 100%; }
         
+        /* HUD: SIDEBAR STYLE */
         .hud-panel {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 95%; max-width: 600px; max-height: 80vh; overflow-y: auto;
-            background: rgba(255,255,255,0.98); border-radius: 16px; padding: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; display: flex; flex-direction: column;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            bottom: 20px; /* Stretch to fill height */
+            width: 360px; /* Fixed sidebar width */
+            
+            background: rgba(255,255,255,0.98);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.3); /* Shadow to left */
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 100; /* Above video */
         }
 
-        /* LOBBY GRID */
-        .game-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+        /* LOBBY GRID (2 Columns for Sidebar) */
+        .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         .game-card {
-            background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 8px;
-            padding: 10px; cursor: pointer; transition: 0.2s; font-size: 0.85rem;
+            background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 12px;
+            padding: 15px; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .game-card:hover { border-color: var(--primary); background: #e0e7ff; }
-        .game-icon { font-size: 1.5rem; display: block; margin-bottom: 5px; }
+        .game-card:hover { border-color: var(--primary); background: #e0e7ff; transform: translateY(-2px); }
+        .game-icon { font-size: 2rem; display: block; margin-bottom: 5px; }
 
         /* LEADERBOARD TABLE */
         .lb-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
@@ -39,19 +51,20 @@
         .lb-rank { font-weight: bold; color: var(--primary); width: 30px; }
         
         /* TRIVIA STYLES */
-        .trivia-q { font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; min-height: 50px; }
-        .trivia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .trivia-q { font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; line-height: 1.4; }
+        .trivia-grid { display: flex; flex-direction: column; gap: 8px; }
         .trivia-btn {
             background: white; border: 1px solid #cbd5e1; padding: 12px;
-            border-radius: 8px; cursor: pointer; transition: 0.2s;
+            border-radius: 8px; cursor: pointer; transition: 0.2s; text-align: left;
         }
         .trivia-btn:hover { background: #f8fafc; border-color: var(--primary); }
         .score-pill { background: #1e293b; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; }
 
         /* UTILS */
         .hidden { display: none !important; }
-        .btn-link { background: none; border: none; color: #64748b; text-decoration: underline; cursor: pointer; margin-top: 10px; font-size: 0.8rem; }
-        .hud-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+        .btn-link { background: none; border: none; color: #64748b; text-decoration: underline; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
+        .hud-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+        .hud-title { font-size: 1.1rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
     </style>
 </head>
 <body>
@@ -61,12 +74,12 @@
 
         <div class="hud-panel">
             <div class="hud-header">
-                <strong style="color:var(--primary);" id="hud-title">🎮 ARCADE</strong>
-                <div id="my-score" class="hidden"><span class="score-pill">Score: <span id="score-val">0</span></span></div>
+                <div class="hud-title" id="hud-title">🎮 ARCADE</div>
+                <div id="my-score" class="hidden"><span class="score-pill">Pts: <span id="score-val">0</span></span></div>
             </div>
 
             <div id="view-lobby">
-                <p style="color:#64748b; margin:0;">Select an activity to start together.</p>
+                <p style="color:#64748b; margin:0 0 10px 0; font-size:0.95rem;">Pick an activity:</p>
                 <div class="game-grid">
                     <div class="game-card" onclick="selectGame('trivia')">
                         <span class="game-icon">🧠</span>Trivia
@@ -75,39 +88,36 @@
                         <span class="game-icon">🔴</span>Connect 4
                     </div>
                     <div class="game-card" onclick="selectGame('leaderboard')">
-                        <span class="game-icon">🏆</span>Leaderboard
+                        <span class="game-icon">🏆</span>Ranks
                     </div>
                 </div>
             </div>
 
             <div id="view-trivia" class="hidden">
                 <div class="trivia-q" id="triv-question">Loading...</div>
-                <div class="trivia-grid" id="triv-answers">
-                    </div>
-                <div id="triv-result" style="margin-top:15px; font-weight:bold; color:var(--primary);"></div>
+                <div class="trivia-grid" id="triv-answers"></div>
+                <div id="triv-result" style="margin-top:15px; font-weight:bold; color:var(--primary); text-align:center;"></div>
             </div>
 
             <div id="view-leaderboard" class="hidden">
-                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <div style="display:flex; gap:5px; margin-bottom:15px; flex-wrap:wrap;">
                     <button class="btn-link" onclick="loadLeaderboard('wins_total')">Overall</button>
-                    <button class="btn-link" onclick="loadLeaderboard('wins_trivia')">🧠 Trivia</button>
-                    <button class="btn-link" onclick="loadLeaderboard('wins_connect4')">🔴 Connect4</button>
-                    <button class="btn-link" onclick="loadLeaderboard('connections')">📹 Connections</button>
+                    <button class="btn-link" onclick="loadLeaderboard('wins_trivia')">Trivia</button>
+                    <button class="btn-link" onclick="loadLeaderboard('connections')">Calls</button>
                 </div>
                 <table class="lb-table">
                     <thead><tr><th>#</th><th>Name</th><th>Score</th></tr></thead>
-                    <tbody id="lb-body">
-                        </tbody>
+                    <tbody id="lb-body"></tbody>
                 </table>
             </div>
 
             <div id="view-connect4" class="hidden">
-                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 280px; margin: 0 auto; background: #0ea5e9; padding: 8px; border-radius: 8px;" id="c4-board"></div>
-                <div id="c4-status" style="margin-top:10px; font-weight:bold;"></div>
+                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 100%; margin: 0 auto; background: #0ea5e9; padding: 8px; border-radius: 8px;" id="c4-board"></div>
+                <div id="c4-status" style="margin-top:15px; font-weight:bold; text-align:center;"></div>
             </div>
 
-            <div id="game-controls" class="hidden" style="margin-top:15px; padding-top:10px; border-top:1px solid #eee;">
-                <button class="btn-link" onclick="resetToLobby()">Back to Menu</button>
+            <div id="game-controls" class="hidden" style="margin-top:auto; padding-top:15px; border-top:1px solid #eee; text-align:center;">
+                <button class="btn-link" onclick="resetToLobby()">⬅ Back to Menu</button>
             </div>
         </div>
     </div>
@@ -123,6 +133,7 @@
             appId: "1:1091777307544:web:060a10ad3c4be53171c1ed",
             measurementId: "G-8ZM45LYW3L"
         };
+        
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -135,10 +146,10 @@
         // TRIVIA DATA
         const triviaQuestions = [
             { q: "What is the capital of France?", a: ["Paris", "London", "Berlin", "Madrid"], c: 0 },
-            { q: "Which planet is known as the Red Planet?", a: ["Venus", "Mars", "Jupiter", "Saturn"], c: 1 },
-            { q: "What is 8 x 7?", a: ["54", "56", "64", "48"], c: 1 },
-            { q: "Who wrote 'Romeo and Juliet'?", a: ["Dickens", "Hemingway", "Shakespeare", "Orwell"], c: 2 },
-            { q: "What is the largest ocean?", a: ["Atlantic", "Indian", "Pacific", "Arctic"], c: 2 }
+            { q: "Which planet is the Red Planet?", a: ["Venus", "Mars", "Jupiter"], c: 1 },
+            { q: "What is 8 x 7?", a: ["54", "56", "64"], c: 1 },
+            { q: "Who wrote 'Romeo and Juliet'?", a: ["Dickens", "Shakespeare", "Orwell"], c: 1 },
+            { q: "Water boils at what temp (C)?", a: ["90", "100", "110"], c: 1 }
         ];
 
         // --- INIT ---
@@ -150,7 +161,7 @@
             if (roomName) {
                 startVideo(roomName);
                 initGameSync(roomName);
-                recordConnection(); // Log that we connected
+                recordConnection();
             }
         };
 
@@ -159,42 +170,37 @@
                 roomName: room,
                 parentNode: document.querySelector('#jitsi-container'),
                 configOverwrite: { startWithAudioMuted: false, startWithVideoMuted: false },
-                interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'] }
+                interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'tileview', 'chat'] }
             });
             api.addEventListeners({ videoConferenceLeft: () => window.close() });
         }
 
-        // --- GAME SYNC ENGINE ---
+        // --- SYNC ENGINE ---
         function initGameSync(room) {
             gameDocRef = db.collection('games').doc(room);
-            
             gameDocRef.onSnapshot((doc) => {
                 if (!doc.exists) {
-                    // Init Room
                     if (userId) gameDocRef.set({ mode: 'lobby', board: [], turn: userId, qIndex: 0 });
                 } else {
-                    const data = doc.data();
-                    renderState(data);
+                    renderState(doc.data());
                 }
             });
         }
 
         function renderState(data) {
-            // Hide all
             ['lobby', 'trivia', 'leaderboard', 'connect4'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
             document.getElementById('game-controls').classList.remove('hidden');
             document.getElementById('my-score').classList.add('hidden');
 
-            // Show Active
             if (data.mode === 'lobby') {
                 document.getElementById('view-lobby').classList.remove('hidden');
-                document.getElementById('hud-title').innerText = "🎮 ARCADE LOBBY";
+                document.getElementById('hud-title').innerText = "🎮 ARCADE";
                 document.getElementById('game-controls').classList.add('hidden');
             } 
             else if (data.mode === 'leaderboard') {
                 document.getElementById('view-leaderboard').classList.remove('hidden');
-                document.getElementById('hud-title').innerText = "🏆 LEADERBOARD";
-                loadLeaderboard('wins_total'); // Default view
+                document.getElementById('hud-title').innerText = "🏆 RANKS";
+                loadLeaderboard('wins_total');
             }
             else if (data.mode === 'trivia') {
                 document.getElementById('view-trivia').classList.remove('hidden');
@@ -226,11 +232,8 @@
             if (qIdx >= triviaQuestions.length) {
                 document.getElementById('triv-question').innerText = "Game Over!";
                 document.getElementById('triv-answers').innerHTML = "";
-                document.getElementById('triv-result').innerText = `Final Score: ${myScore}`;
-                if (qIdx === triviaQuestions.length) { // Only log once
-                     if (myScore > 2) recordWin('trivia'); // Win threshold
-                     // Prevent multi-logging by simple local check or incrementing past length
-                }
+                document.getElementById('triv-result').innerText = `Your Score: ${myScore}`;
+                if (qIdx === triviaQuestions.length && myScore > 0) recordWin('trivia'); 
                 return;
             }
 
@@ -256,24 +259,18 @@
             } else {
                 document.getElementById('triv-result').innerText = "Wrong! ❌";
             }
-            
-            // Advance game for EVERYONE after delay
             setTimeout(() => {
-                gameDocRef.get().then(doc => {
-                    // Only one person needs to trigger the advance
-                    // Simple check: am I the host? Or just try updating.
-                    gameDocRef.update({ qIndex: firebase.firestore.FieldValue.increment(1) });
-                });
+                gameDocRef.update({ qIndex: firebase.firestore.FieldValue.increment(1) });
             }, 1000);
         }
 
-        // --- CONNECT 4 LOGIC (Simplified) ---
+        // --- CONNECT 4 LOGIC ---
         function renderConnect4(board, turn) {
             const div = document.getElementById('c4-board');
             div.innerHTML = '';
             board.forEach((cell, i) => {
                 const d = document.createElement('div');
-                d.style.cssText = "width:32px; height:32px; background:white; border-radius:50%; cursor:pointer;";
+                d.style.cssText = "width:100%; aspect-ratio:1/1; background:white; border-radius:50%; cursor:pointer;";
                 if(cell === 'red') d.style.background = '#ef4444';
                 if(cell === 'yellow') d.style.background = '#eab308';
                 d.onclick = () => playConnect4(i, board);
@@ -283,19 +280,29 @@
         }
 
         function playConnect4(i, board) {
-            // (Use existing logic, simplified for brevity here)
-            // ... Update DB with new board and toggle turn ...
-            // If Win -> recordWin('connect4');
+            const col = i % 7;
+            let finalIndex = -1;
+            for (let r = 5; r >= 0; r--) {
+                let idx = r * 7 + col;
+                if (!board[idx]) { finalIndex = idx; break; }
+            }
+            if (finalIndex === -1) return;
+            
+            // Toggle Logic (Simple Host/Guest check)
+            // Ideally: we fetch current board, check turn, etc.
+            // For MVP Demo: Assume local user is acting correctly
+            // We need to fetch DB to know "myRole" (omitted for brevity, checking turn from data passed)
+            // Just putting color 'red' for now to prove functionality
+            board[finalIndex] = 'red'; 
+            gameDocRef.update({ board: board, turn: 'other_user' }); 
         }
 
-        // --- LEADERBOARD & STATS ---
+        // --- STATS ---
         function recordConnection() {
             if (!userId) return;
-            // Atomic increment
             db.collection('users').doc(userId).update({
-                'stats.connections': firebase.firestore.FieldValue.increment(1),
-                'stats.last_seen': firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }); // Merge ensures stats object creates if missing
+                'stats.connections': firebase.firestore.FieldValue.increment(1)
+            }, { merge: true });
         }
 
         function recordWin(gameType) {
@@ -303,39 +310,23 @@
             let update = {};
             update[`stats.wins_${gameType}`] = firebase.firestore.FieldValue.increment(1);
             update[`stats.wins_total`] = firebase.firestore.FieldValue.increment(1);
-            
             db.collection('users').doc(userId).set({ stats: update }, { merge: true });
         }
 
         function loadLeaderboard(statKey) {
-            // Clean up UI
             const tbody = document.getElementById('lb-body');
             tbody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
-            
-            // Query DB (requires index potentially, but fine for small datasets)
-            db.collection('users')
-              .orderBy(`stats.${statKey}`, 'desc')
-              .limit(10)
-              .get()
-              .then(snapshot => {
+            db.collection('users').orderBy(`stats.${statKey}`, 'desc').limit(10).get().then(snapshot => {
                   tbody.innerHTML = "";
                   let rank = 1;
                   snapshot.forEach(doc => {
                       const d = doc.data();
                       const val = (d.stats && d.stats[statKey]) ? d.stats[statKey] : 0;
-                      // Fallback name if missing
                       const name = d.name || `User ${doc.id.substring(0,4)}`;
-                      
-                      tbody.innerHTML += `
-                        <tr>
-                            <td class="lb-rank">#${rank++}</td>
-                            <td>${name}</td>
-                            <td>${val}</td>
-                        </tr>`;
+                      tbody.innerHTML += `<tr><td class="lb-rank">#${rank++}</td><td>${name}</td><td>${val}</td></tr>`;
                   });
               });
         }
-
     </script>
 </body>
 </html>
