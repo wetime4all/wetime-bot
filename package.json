@@ -1,0 +1,17 @@
+{
+  "name": "wetime-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@slack/bolt": "^4.6.0",
+    "dotenv": "^17.2.3",
+    "firebase-admin": "^13.6.0"
+  }
+}
