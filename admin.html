@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WeTime Admin</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f8fafc; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { color: #1e293b; }
+        .stat { font-size: 2rem; font-weight: bold; color: #6366f1; }
+    </style>
+</head>
+<body>
+    <h1>Employer Dashboard (Live)</h1>
+    
+    <div class="card">
+        <h3>🔥 Total Coins Earned (Company Wide)</h3>
+        <div id="total-coins" class="stat">Loading...</div>
+    </div>
+
+    <div class="card">
+        <h3>👥 Active Users</h3>
+        <div id="active-users" class="stat">Loading...</div>
+    </div>
+
+    <script>
+        // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBMFYXNMF2tooZ3qC8Td_UnazsyndRxQpo",
+  authDomain: "wetime-db.firebaseapp.com",
+  projectId: "wetime-db",
+  storageBucket: "wetime-db.firebasestorage.app",
+  messagingSenderId: "1091777307544",
+  appId: "1:1091777307544:web:060a10ad3c4be53171c1ed",
+  measurementId: "G-8ZM45LYW3L"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Real-time Listener for Stats
+        db.collection('users').onSnapshot(snapshot => {
+            let totalCoins = 0;
+            let userCount = snapshot.size;
+
+            snapshot.forEach(doc => {
+                totalCoins += (doc.data().coins || 0);
+            });
+
+            document.getElementById('total-coins').innerText = totalCoins;
+            document.getElementById('active-users').innerText = userCount;
+        });
+    </script>
+</body>
+</html>
