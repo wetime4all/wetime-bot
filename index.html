@@ -4,198 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WeTime | Employee Hub</title>
-    <script src='https://meet.ffmuc.net/external_api.js'></script>
+    <script src='https://meet.guifi.net/external_api.js'></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #6366f1; --primary-dark: #4f46e5;
-            --bg: #f8fafc; --surface: #ffffff;
+            --primary: #6366f1; --bg: #f8fafc; --surface: #ffffff;
             --text: #1e293b; --text-light: #64748b;
-            --success: #10b981; --danger: #ef4444;
         }
 
-        * { box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
-        /* --- NAVIGATION --- */
-        nav {
-            background: var(--surface); border-bottom: 1px solid #e2e8f0;
-            padding: 0 30px; height: 60px; display: flex; align-items: center; justify-content: space-between;
-        }
-        .logo { font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+        /* NAV */
+        nav { background: var(--surface); border-bottom: 1px solid #e2e8f0; padding: 0 30px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-weight: 800; font-size: 1.2rem; }
         .logo span { background: var(--primary); color: white; padding: 2px 8px; border-radius: 6px; }
-        .nav-right { display: flex; align-items: center; gap: 20px; font-size: 0.9rem; font-weight: 600; }
-        .coin-pill { background: #FFFBEB; color: #b45309; padding: 5px 12px; border-radius: 20px; border: 1px solid #fbbf24; }
 
-        /* --- MAIN CONTAINER --- */
+        /* VIEWS */
         #app-container { flex: 1; position: relative; overflow: hidden; }
 
-        /* --- VIEW: DASHBOARD (The Landing Page) --- */
-        #view-dashboard {
-            padding: 30px; height: 100%; overflow-y: auto;
-            display: grid; grid-template-columns: 300px 1fr 300px; gap: 30px;
-            max-width: 1400px; margin: 0 auto;
-        }
+        /* DASHBOARD */
+        #view-dashboard { padding: 30px; display: grid; grid-template-columns: 300px 1fr 300px; gap: 30px; height: 100%; overflow-y: auto; }
+        .card { background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; }
 
-        /* CARDS */
-        .card { background: var(--surface); border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 20px; }
-        .card h3 { margin: 0 0 15px 0; font-size: 1rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
-
-        /* PROFILE COL */
-        .profile-hero { text-align: center; padding: 30px 20px; }
-        .avatar-lg { width: 80px; height: 80px; background: #e0e7ff; color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto 15px auto; }
-        .timer-box { background: #1e293b; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 20px; }
-        .timer-val { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-
-        /* CENTER ARCADE */
-        .arcade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-        .game-tile {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;
-            cursor: pointer; transition: 0.2s; text-align: center;
-        }
-        .game-tile:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1); }
-        .game-tile h4 { margin: 10px 0 5px 0; font-size: 1.1rem; }
-        .game-emoji { font-size: 2.5rem; display: block; }
-        .tag-solo { font-size: 0.7rem; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
-
-        /* RIGHT LEADERBOARD & PEOPLE */
-        .person-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
-        .status-dot { width: 8px; height: 8px; background: #cbd5e1; border-radius: 50%; }
-        .status-dot.online { background: var(--success); box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
-        .lb-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-        .lb-rank { font-weight: bold; color: var(--primary); width: 25px; }
-
-        /* --- VIEW: VIDEO CALL (Hidden by default) --- */
-        #view-call {
-            display: none; width: 100%; height: 100%; background: #111827; position: absolute; top: 0; left: 0; z-index: 100;
+        /* CALL VIEW */
+        #view-call { 
+            display: none; /* Hidden by default */
+            width: 100%; height: 100%; 
+            background: #111827; 
+            position: absolute; top: 0; left: 0; z-index: 999; 
         }
         #jitsi-container { width: 100%; height: 100%; }
 
-        /* HUD SIDEBAR (Docked Right) */
+        /* HUD SIDEBAR */
         .hud-sidebar {
             position: absolute; top: 20px; right: 20px; bottom: 20px; width: 340px;
             background: rgba(255,255,255,0.96); border-radius: 16px; padding: 20px;
             display: flex; flex-direction: column; box-shadow: -5px 0 30px rgba(0,0,0,0.3);
         }
-        .hud-content { flex: 1; overflow-y: auto; }
 
         /* UTILS */
-        .btn-primary { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; }
         .hidden { display: none !important; }
-        
-        /* TRIVIA SPECIFIC */
-        .trivia-btn { background: white; border: 1px solid #cbd5e1; padding: 10px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; }
-        .trivia-btn:hover { border-color: var(--primary); background: #f1f5f9; }
-
-        /* MEDIA QUERY */
-        @media (max-width: 1000px) { #view-dashboard { grid-template-columns: 1fr; } }
+        .btn-end { background: #fee2e2; color: #ef4444; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <nav>
         <div class="logo">We<span>Time</span></div>
-        <div class="nav-right">
-            <span class="coin-pill">🪙 <span id="nav-coins">0</span></span>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <div style="width:30px; height:30px; background:#e0e7ff; border-radius:50%; display:flex; align-items:center; justify-content:center;">👤</div>
-                <span id="nav-username">Guest</span>
-            </div>
-        </div>
+        <div id="debug-info" style="font-size: 0.8rem; color: #ef4444;"></div> 
     </nav>
 
     <div id="app-container">
         
         <div id="view-dashboard">
-            <div class="col-left">
-                <div class="card profile-hero">
-                    <div class="avatar-lg">👤</div>
-                    <h2 style="margin:0;" id="dash-name">Welcome!</h2>
-                    <p style="color:var(--text-light); margin-top:5px;">Operations Dept.</p>
-                    
-                    <div class="timer-box">
-                        <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; color:#94a3b8;">Break Time Left</div>
-                        <div class="timer-val" id="break-timer">15:00</div>
-                    </div>
+            <div class="card">
+                <h3>👤 Profile</h3>
+                <h2 id="dash-name">Welcome</h2>
+                <div style="background:#1e293b; color:white; padding:15px; border-radius:8px; text-align:center; margin-top:10px;">
+                    <div id="break-timer" style="font-size:1.5rem; font-weight:800;">15:00</div>
                 </div>
             </div>
 
-            <div class="col-center">
-                <div class="card">
-                    <h3>🎮 Continue Playing</h3>
-                    <p style="font-size:0.9rem; color:#64748b; margin-bottom:20px;">
-                        Finished your call? Keep your streak alive by playing solo or challenging a colleague.
-                    </p>
-                    <div class="arcade-grid">
-                        <div class="game-tile" onclick="playSolo('trivia')">
-                            <span class="game-emoji">🧠</span>
-                            <h4>Solo Trivia</h4>
-                            <span class="tag-solo">Single Player</span>
-                        </div>
-                        <div class="game-tile" onclick="alert('Please find a partner in Slack first!')">
-                            <span class="game-emoji">🔴</span>
-                            <h4>Connect 4</h4>
-                            <span style="font-size:0.7rem; color:#94a3b8;">Requires Partner</span>
-                        </div>
-                        <div class="game-tile" onclick="alert('Please find a partner in Slack first!')">
-                            <span class="game-emoji">❌</span>
-                            <h4>Tic Tac Toe</h4>
-                            <span style="font-size:0.7rem; color:#94a3b8;">Requires Partner</span>
-                        </div>
-                    </div>
+            <div class="card">
+                <h3>🎮 Arcade</h3>
+                <div style="padding:20px; background:#f1f5f9; border-radius:8px; text-align:center; cursor:pointer;">
+                    <span style="font-size:2rem;">🧠</span><br>
+                    <strong>Solo Trivia</strong>
                 </div>
             </div>
 
-            <div class="col-right">
-                <div class="card">
-                    <h3>🏆 Top Players (Weekly)</h3>
-                    <div id="dash-leaderboard">Loading...</div>
-                </div>
-                
-                <div class="card">
-                    <h3>🟢 Online Now</h3>
-                    <div id="dash-directory">Loading...</div>
-                </div>
+            <div class="card">
+                <h3>🏆 Leaderboard</h3>
+                <div id="dash-leaderboard">Loading...</div>
             </div>
         </div>
 
         <div id="view-call">
             <div id="jitsi-container"></div>
-            
             <div class="hud-sidebar">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                    <strong style="color:var(--primary);">🎮 GAME HUD</strong>
-                    <button onclick="endCall()" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; font-weight:bold; cursor:pointer;">End Call</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <strong>🎮 GAME HUD</strong>
+                    <button class="btn-end" onclick="endCall()">End Call</button>
                 </div>
-
-                <div class="hud-content">
-                    <div id="hud-lobby">
-                        <p style="font-size:0.9rem; color:#64748b;">Pick an activity:</p>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                            <button class="trivia-btn" onclick="hudSelectGame('trivia')">🧠 Trivia</button>
-                            <button class="trivia-btn" onclick="hudSelectGame('connect4')">🔴 Connect 4</button>
-                        </div>
-                    </div>
-
-                    <div id="hud-trivia" class="hidden">
-                        <h4 style="margin:0 0 10px 0;">Question:</h4>
-                        <div id="triv-q-text" style="font-weight:bold; margin-bottom:15px;">...</div>
-                        <div id="triv-opts"></div>
-                        <div id="triv-res" style="margin-top:10px; font-weight:bold; color:var(--primary);"></div>
-                    </div>
-
-                    <div id="hud-c4" class="hidden">
-                         <div id="c4-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px; background:#0ea5e9; padding:5px; border-radius:8px;"></div>
-                         <div id="c4-msg" style="margin-top:10px; text-align:center; font-weight:bold;"></div>
-                    </div>
-                </div>
-                
-                <div style="margin-top:auto; padding-top:10px; border-top:1px solid #eee; text-align:center;">
-                    <small onclick="hudReset()" style="color:#94a3b8; cursor:pointer; text-decoration:underline;">Back to Menu</small>
+                <div id="hud-content">
+                    <p>Waiting for game sync...</p>
                 </div>
             </div>
         </div>
@@ -203,7 +98,7 @@
     </div>
 
     <script>
-        // --- CONFIG ---
+        // --- 1. FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyBMFYXNMF2tooZ3qC8Td_UnazsyndRxQpo",
             authDomain: "wetime-db.firebaseapp.com",
@@ -212,227 +107,72 @@
             messagingSenderId: "1091777307544",
             appId: "1:1091777307544:web:060a10ad3c4be53171c1ed",
             measurementId: "G-8ZM45LYW3L"
-        ;
+        };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // --- STATE ---
-        let userId = null;
-        let roomName = null;
-        let gameDocRef = null;
-        let breakTime = 900; // 15 mins in seconds
-
-        const triviaData = [
-            { q: "Capital of Japan?", a: ["Tokyo", "Kyoto", "Osaka"], c: 0 },
-            { q: "H2O is?", a: ["Gold", "Water", "Salt"], c: 1 },
-            { q: "Fastest animal?", a: ["Cheetah", "Lion", "Eagle"], c: 0 }
-        ];
-
-        // --- INIT ---
+        // --- 2. STARTUP LOGIC ---
         window.onload = function() {
             const params = new URLSearchParams(window.location.search);
-            roomName = params.get('room');
-            userId = params.get('user');
+            const roomName = params.get('room');
+            const userId = params.get('user');
 
-            if (userId) {
-                loadUser(userId);
-                startBreakTimer();
-            } else {
-                // If no user, simulate one for dashboard demo
-                document.getElementById('dash-name').innerText = "Guest User";
-            }
+            // DEBUG: Show URL params on screen to verify
+            const debugEl = document.getElementById('debug-info');
+            debugEl.innerText = roomName ? `Room found: ${roomName}` : "No Room ID detected";
 
             if (roomName) {
-                // ACTIVE CALL MODE
-                document.getElementById('view-call').style.display = 'block';
+                // FORCE VIDEO VIEW
+                console.log("Starting video in room: " + roomName);
                 document.getElementById('view-dashboard').style.display = 'none';
+                document.getElementById('view-call').style.display = 'block';
                 startVideo(roomName);
-                initGameSync(roomName);
             } else {
-                // DASHBOARD MODE
+                // SHOW DASHBOARD
                 loadDashboardData();
             }
         };
 
-        // --- DASHBOARD LOGIC ---
-        function loadUser(uid) {
-            db.collection('users').doc(uid).onSnapshot(doc => {
-                if(doc.exists) {
-                    const data = doc.data();
-                    document.getElementById('nav-coins').innerText = data.coins || 0;
-                    document.getElementById('dash-name').innerText = data.name || "Employee";
-                    document.getElementById('nav-username').innerText = data.name || "User";
-                    
-                    // Update 'Last Seen' for Directory
-                    db.collection('users').doc(uid).update({ 
-                        last_seen: firebase.firestore.FieldValue.serverTimestamp(),
-                        online: true
-                    });
-                }
-            });
+        // --- 3. VIDEO ENGINE (Guifi.net) ---
+        function startVideo(room) {
+            const domain = "meet.guifi.net"; // Open instance
+            const options = {
+                roomName: room,
+                parentNode: document.getElementById('jitsi-container'),
+                width: '100%',
+                height: '100%',
+                configOverwrite: { 
+                    startWithAudioMuted: false, 
+                    startWithVideoMuted: false,
+                    prejoinPageEnabled: false // DISABLE PRE-JOIN SCREEN
+                },
+                interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'] }
+            };
+            const api = new JitsiMeetExternalAPI(domain, options);
+            api.addEventListeners({ videoConferenceLeft: () => endCall() });
         }
 
+        function endCall() {
+            document.getElementById('view-call').style.display = 'none';
+            document.getElementById('view-dashboard').style.display = 'grid';
+            // Clean URL so refresh doesn't restart call
+            window.history.pushState({}, document.title, window.location.pathname);
+        }
+
+        // --- 4. DASHBOARD DATA ---
         function loadDashboardData() {
-            // 1. Leaderboard
+            // Simple Leaderboard Fetch
             db.collection('users').orderBy('stats.wins_total', 'desc').limit(5).get().then(snap => {
                 const el = document.getElementById('dash-leaderboard');
                 el.innerHTML = "";
                 let rank = 1;
                 snap.forEach(doc => {
                     const d = doc.data();
-                    el.innerHTML += `
-                        <div class="lb-row">
-                            <div style="display:flex; gap:10px;">
-                                <span class="lb-rank">#${rank++}</span>
-                                <span>${d.name || 'User'}</span>
-                            </div>
-                            <strong>${d.stats?.wins_total || 0} wins</strong>
-                        </div>`;
-                });
-            });
-
-            // 2. Directory (Simulated "Online")
-            db.collection('users').orderBy('last_seen', 'desc').limit(5).get().then(snap => {
-                const el = document.getElementById('dash-directory');
-                el.innerHTML = "";
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    // Don't show self
-                    if(doc.id === userId) return;
-                    el.innerHTML += `
-                        <div class="person-row">
-                            <div class="status-dot online"></div>
-                            <div style="flex:1;">
-                                <div style="font-weight:600; font-size:0.9rem;">${d.name || 'User'}</div>
-                                <div style="font-size:0.8rem; color:#94a3b8;">${d.dept || 'General'}</div>
-                            </div>
-                            <button onclick="alert('Invite sent to Slack!')" style="font-size:0.8rem; padding:4px 8px; border:1px solid #e2e8f0; background:white; border-radius:4px; cursor:pointer;">👋 Wave</button>
-                        </div>`;
+                    el.innerHTML += `<div style="padding:5px 0;">#${rank++} <strong>${d.name||'User'}</strong> (${d.stats?.wins_total||0} wins)</div>`;
                 });
             });
         }
-
-        function startBreakTimer() {
-            setInterval(() => {
-                if(breakTime > 0) {
-                    breakTime--;
-                    let m = Math.floor(breakTime / 60);
-                    let s = breakTime % 60;
-                    document.getElementById('break-timer').innerText = `${m}:${s < 10 ? '0'+s : s}`;
-                }
-            }, 1000);
-        }
-
-        // --- CALL & GAME LOGIC ---
-        function startVideo(room) {
-            const api = new JitsiMeetExternalAPI("meet.ffmuc.net", {
-                roomName: room,
-                parentNode: document.getElementById('jitsi-container'),
-                configOverwrite: { startWithAudioMuted: false, startWithVideoMuted: false },
-                interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'tileview', 'chat'] }
-            });
-            api.addEventListeners({ videoConferenceLeft: () => endCall() });
-        }
-
-        function endCall() {
-            // SWITCH VIEW
-            document.getElementById('view-call').style.display = 'none';
-            document.getElementById('view-dashboard').style.display = 'grid';
-            
-            // RELOAD DASHBOARD DATA
-            loadDashboardData();
-            
-            // CLEAN URL
-            window.history.pushState({}, document.title, window.location.pathname + "?user=" + userId);
-        }
-
-        // --- HUD SYNC ---
-        function initGameSync(room) {
-            gameDocRef = db.collection('games').doc(room);
-            gameDocRef.onSnapshot(doc => {
-                if(!doc.exists && userId) {
-                    gameDocRef.set({ mode: 'lobby' });
-                } else if(doc.exists) {
-                    renderHud(doc.data());
-                }
-            });
-        }
-
-        function renderHud(data) {
-            ['lobby', 'trivia', 'c4'].forEach(v => document.getElementById(`hud-${v}`).classList.add('hidden'));
-            
-            if(data.mode === 'lobby') {
-                document.getElementById('hud-lobby').classList.remove('hidden');
-            } else if (data.mode === 'trivia') {
-                document.getElementById('hud-trivia').classList.remove('hidden');
-                // Render Trivia Question
-                const q = triviaData[data.qIndex || 0];
-                if(q) {
-                    document.getElementById('triv-q-text').innerText = q.q;
-                    const c = document.getElementById('triv-opts');
-                    c.innerHTML = "";
-                    q.a.forEach((ans, i) => {
-                        c.innerHTML += `<div class="trivia-btn" onclick="submitAns(${i}, ${q.c})">${ans}</div>`;
-                    });
-                } else {
-                    document.getElementById('triv-q-text').innerText = "Game Over!";
-                    document.getElementById('triv-opts').innerHTML = "";
-                }
-            } else if (data.mode === 'connect4') {
-                document.getElementById('hud-c4').classList.remove('hidden');
-                renderC4(data.board || Array(42).fill(null));
-            }
-        }
-
-        function hudSelectGame(mode) {
-            gameDocRef.update({ mode: mode, qIndex: 0, board: Array(42).fill(null) });
-        }
-        function hudReset() {
-            gameDocRef.update({ mode: 'lobby' });
-        }
-
-        // --- TRIVIA LOGIC ---
-        function submitAns(idx, correct) {
-            if(idx === correct) {
-                document.getElementById('triv-res').innerText = "Correct! +10 Pts";
-                db.collection('users').doc(userId).update({
-                    coins: firebase.firestore.FieldValue.increment(10),
-                    'stats.wins_total': firebase.firestore.FieldValue.increment(1)
-                });
-            } else {
-                document.getElementById('triv-res').innerText = "Wrong!";
-            }
-            setTimeout(() => {
-                document.getElementById('triv-res').innerText = "";
-                gameDocRef.update({ qIndex: firebase.firestore.FieldValue.increment(1) });
-            }, 1000);
-        }
-
-        // --- CONNECT 4 LOGIC ---
-        function renderC4(board) {
-            const el = document.getElementById('c4-grid');
-            el.innerHTML = "";
-            board.forEach((cell, i) => {
-                const d = document.createElement('div');
-                d.style.cssText = "width:100%; aspect-ratio:1/1; background:white; border-radius:50%; cursor:pointer;";
-                if(cell === 'red') d.style.background = '#ef4444';
-                if(cell === 'yellow') d.style.background = '#eab308';
-                d.onclick = () => {
-                    board[i] = 'red'; // Simple Toggle for demo
-                    gameDocRef.update({ board: board });
-                };
-                el.appendChild(d);
-            });
-        }
-        
-        // --- SOLO MODE (DASHBOARD) ---
-        function playSolo(game) {
-            alert("Launching Solo Training Mode...");
-            // In a real app, this would overlay a game modal on the dashboard
-            // For MVP, we can reuse the HUD styles in a modal
-        }
-
     </script>
 </body>
 </html>
