@@ -34,17 +34,21 @@ const getDashboardBlocks = (user) => {
     { type: "header", text: { type: "plain_text", text: `Welcome back, ${user}! 👋` } },
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
-    { type: "section", text: { type: "mrkdwn", text: "*Choose your break activity:*" } },
-    {
-      type: "actions",
-      elements: [
-        { type: "button", text: { type: "plain_text", text: "☕ Speed Coffee", emoji: true }, style: "primary", action_id: "btn_speed_coffee" },
-        { type: "button", text: { type: "plain_text", text: "🕹️ Connect 4", emoji: true }, action_id: "btn_connect4" }, // NEW BUTTON
-        { type: "button", text: { type: "plain_text", text: "🧘 MeTime", emoji: true }, action_id: "btn_metime" }
+    { type: "actions", elements: [
+        { type: "button", text: { type: "plain_text", text: "☕ Speed Coffee" }, style: "primary", action_id: "btn_speed_coffee" },
+        { type: "button", text: { type: "plain_text", text: "🎮 WeTime Arcade" }, action_id: "btn_arcade" }, // RENAMED
+        { type: "button", text: { type: "plain_text", text: "🧘 MeTime" }, action_id: "btn_metime" }
       ]
     }
   ];
 };
+
+// 2. Add the Generic "Arcade" Handler (Replaces btn_connect4)
+app.action('btn_arcade', async ({ body, ack, client }) => {
+  await ack();
+  // Send them to the 'lobby' mode. The frontend handles the rest.
+  await handleMatchmaking(body, client, 'game_queue', '&mode=lobby');
+});
 
 // --- EVENTS ---
 
