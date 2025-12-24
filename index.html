@@ -4,6 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WeTime | Unified Platform</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+<script>
+    // 1. Initialize Firebase
+    const firebaseConfig = {
+        // --- PASTE YOUR CONFIG HERE ---
+        apiKey: "AIzaSy...",
+        authDomain: "wetime-db.firebaseapp.com",
+        projectId: "wetime-db",
+        storageBucket: "wetime-db.appspot.com",
+        messagingSenderId: "...",
+        appId: "..."
+        // ------------------------------
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // 2. Get User ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('user');
+
+    // 3. Load Real Coin Balance
+    if (userId) {
+        db.collection('users').doc(userId).onSnapshot((doc) => {
+            if (doc.exists) {
+                // Update the UI with real data from DB
+                document.getElementById('coin-balance').innerText = doc.data().coins || 0;
+                coinBalance = doc.data().coins || 0; // Sync local variable
+            } else {
+                // If user is new, create them
+                db.collection('users').doc(userId).set({ coins: 450, name: "Employee" });
+            }
+        });
+    }
+
+    // 4. Update the EndCall Function to SAVE data
+    // (Find your existing endCall function and update the Coin Animation part)
+    function endCall() {
+        if (jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
+        document.getElementById('call-overlay').style.display = 'none';
+        document.getElementById('overlay-feedback').style.display = 'flex';
+        
+        // SAVE TO DATABASE
+        if (userId) {
+            // Atomically increment coins by 50
+            db.collection('users').doc(userId).update({
+                coins: firebase.firestore.FieldValue.increment(50)
+            });
+        }
+
+        // (Optional) Keep the visual animation if you want, 
+        // but the database listener above will handle the text update automatically!
+    }
+</script>
     <script src='https://meet.jit.si/external_api.js'></script>
     <style>
         :root {
