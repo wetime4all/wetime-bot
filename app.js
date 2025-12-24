@@ -24,14 +24,14 @@ const app = new App({
 
 // --- 2. HELPER FUNCTIONS ---
 
-function createVideoRoom() {
+// Change the function signature to accept userId
+function createVideoRoom(userId) {
   const uniqueId = Math.random().toString(36).substring(2, 12);
   const roomName = `WeTime-${uniqueId}`;
-
-  // PASTE YOUR URL HERE
   const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
 
-  return `${myAppUrl}?room=${roomName}`;
+  // Add &user=USER_ID to the end
+  return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
 
 // Generate the Dashboard UI
@@ -102,6 +102,7 @@ app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   
   const userId = body.user.id;
   const queueRef = db.collection('match_queue');
+  const roomUrl = createVideoRoom(userId); // Pass the userId here!
 
   try {
     // 1. Check if anyone else is waiting
