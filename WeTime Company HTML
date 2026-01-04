@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeTime | The OS for Remote Culture</title>
+    <style>
+        :root {
+            --primary: #6366f1;       /* Indigo */
+            --primary-dark: #4338ca;
+            --secondary: #1e293b;     /* Slate */
+            --text-main: #334155;
+            --text-light: #64748b;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --accent: #F59E0B;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            background-color: var(--surface);
+            line-height: 1.6;
+        }
+
+        /* --- NAVIGATION --- */
+        nav {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 20px 5%;
+            position: sticky; top: 0; background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px); z-index: 1000;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--secondary); }
+        .logo span { color: var(--primary); }
+        
+        .nav-links a {
+            text-decoration: none; color: var(--text-main); font-weight: 500;
+            margin-left: 30px; transition: 0.2s;
+        }
+        .nav-links a:hover { color: var(--primary); }
+        .btn-nav {
+            background: var(--primary); color: white !important;
+            padding: 10px 20px; border-radius: 8px;
+        }
+        .btn-nav:hover { background: var(--primary-dark); }
+
+        /* --- HERO SECTION --- */
+        .hero {
+            padding: 80px 5% 60px;
+            text-align: center;
+            background: radial-gradient(circle at top right, #e0e7ff, transparent 40%),
+                        radial-gradient(circle at bottom left, #fae8ff, transparent 40%);
+        }
+        .hero h1 {
+            font-size: 3.5rem; font-weight: 800; color: var(--secondary);
+            margin-bottom: 20px; line-height: 1.2;
+        }
+        .hero p {
+            font-size: 1.2rem; color: var(--text-light);
+            max-width: 600px; margin: 0 auto 40px;
+        }
+        .hero-buttons { display: flex; gap: 15px; justify-content: center; }
+        .btn-primary {
+            background: var(--primary); color: white; padding: 15px 30px;
+            text-decoration: none; border-radius: 8px; font-weight: 600;
+            transition: 0.2s; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            border: none; cursor: pointer; display: inline-block; font-size: 1rem;
+        }
+        .btn-primary:hover { transform: translateY(-2px); background: var(--primary-dark); }
+        .btn-outline {
+            background: white; color: var(--text-main); border: 1px solid #cbd5e1;
+            padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: 600;
+            transition: 0.2s; display: inline-block;
+        }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* Fake UI Preview */
+        .hero-preview {
+            margin-top: 60px;
+            background: white; border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
+            overflow: hidden; max-width: 1000px; margin-left: auto; margin-right: auto;
+        }
+        .preview-header { background: #f1f5f9; padding: 10px 20px; display: flex; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; }
+        .preview-body { padding: 40px; display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 20px; text-align: left; }
+        .skel-card { background: #f8fafc; height: 150px; border-radius: 12px; border: 1px solid #e2e8f0; }
+
+        /* --- FEATURES --- */
+        .features { padding: 80px 5%; background: white; }
+        .section-title { text-align: center; margin-bottom: 60px; }
+        .section-title h2 { font-size: 2.5rem; color: var(--secondary); margin-bottom: 10px; }
+        .section-title p { color: var(--text-light); }
+
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; }
+        .feature-item { padding: 30px; border-radius: 16px; background: #f8fafc; transition: 0.3s; border: 1px solid transparent; }
+        .feature-item:hover { border-color: var(--primary); transform: translateY(-5px); background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .f-icon { font-size: 2.5rem; margin-bottom: 20px; display: block; }
+        .feature-item h3 { font-size: 1.4rem; margin-bottom: 10px; }
+
+        /* --- STATS / TRUST --- */
+        .stats { background: var(--secondary); color: white; padding: 60px 5%; display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap; gap: 30px;}
+        .stat-item h3 { font-size: 3rem; color: var(--primary); margin: 0; }
+        .stat-item p { opacity: 0.8; font-size: 1.1rem; }
+
+        /* --- PRICING --- */
+        .pricing { padding: 80px 5%; background: var(--bg); }
+        .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .price-card { 
+            background: white; padding: 30px 20px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; position: relative; 
+            display: flex; flex-direction: column;
+        }
+        .price-card.featured { 
+            border: 2px solid var(--primary); transform: scale(1.05); 
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15); z-index: 2; 
+        }
+        .tag-popular { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        .price { font-size: 2.5rem; font-weight: 800; color: var(--secondary); margin: 15px 0; }
+        .price span { font-size: 1rem; color: var(--text-light); font-weight: 400; }
+        .employee-limit { font-weight: 700; color: var(--primary); margin-bottom: 15px; display: block; }
+        .features-list { list-style: none; margin: 20px 0; text-align: left; flex: 1; }
+        .features-list li { margin-bottom: 10px; color: var(--text-main); font-size: 0.9rem; }
+        .features-list li::before { content: "✓"; color: var(--success); margin-right: 8px; font-weight: bold; }
+
+        /* --- CONTACT SECTION --- */
+        .contact { padding: 80px 5%; background: white; border-top: 1px solid #e2e8f0; }
+        .contact-container {
+            max-width: 600px; margin: 0 auto; background: #f8fafc; padding: 40px;
+            border-radius: 16px; border: 1px solid #e2e8f0;
+        }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--secondary); font-size: 0.9rem; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 1rem; font-family: inherit;
+        }
+        .form-group textarea { height: 120px; resize: vertical; }
+
+        /* --- ABOUT SECTION (NEW & SENTIMENTAL) --- */
+        .about { padding: 100px 5%; background: linear-gradient(135deg, #1e293b, #0f172a); color: white; text-align: center; }
+        .about-container { max-width: 800px; margin: 0 auto; }
+        .about h2 { font-size: 2.5rem; margin-bottom: 30px; color: var(--primary); }
+        .about p { font-size: 1.15rem; line-height: 1.8; color: #cbd5e1; margin-bottom: 20px; }
+        .signature { margin-top: 40px; font-weight: bold; font-size: 1.2rem; color: white; }
+        .signature span { color: var(--primary); }
+
+        /* --- FOOTER --- */
+        footer { padding: 60px 5%; background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: center; color: var(--text-light); }
+        .footer-links { display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; }
+        .footer-links a { color: var(--text-main); text-decoration: none; font-weight: 500; }
+
+        @media (max-width: 1024px) {
+            .pricing-grid { grid-template-columns: 1fr 1fr; }
+            .price-card.featured { transform: scale(1); }
+        }
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .hero-preview { display: none; }
+            .pricing-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">We<span>Time</span></div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#contact">Contact</a>
+            <a href="#about">About</a>
+            <a href="index.html" class="btn-nav">Log In</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <h1>Culture isn't a ping pong table.<br>It's connection.</h1>
+        <p>The all-in-one platform for remote teams to play, connect, and recharge. Reduce burnout and boost engagement in just 15 minutes a day.</p>
+        <div class="hero-buttons">
+            <a href="index.html" class="btn-primary">Start Free Trial</a>
+            <a href="#pricing" class="btn-outline">View Pricing</a>
+        </div>
+
+        <div class="hero-preview">
+            <div class="preview-header">
+                <div class="dot" style="background:#EF4444"></div>
+                <div class="dot" style="background:#F59E0B"></div>
+                <div class="dot" style="background:#10B981"></div>
+            </div>
+            <div class="preview-body">
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div class="skel-card" style="height:50px; background:#1e293b;"></div>
+                    <div class="skel-card" style="flex:1;"></div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:20px;">
+                    <div class="skel-card" style="background: linear-gradient(135deg, var(--primary), #818cf8); height: 100px;"></div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                        <div class="skel-card"></div>
+                        <div class="skel-card"></div>
+                        <div class="skel-card"></div>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div class="skel-card" style="flex:1;"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats">
+        <div class="stat-item">
+            <h3>88%</h3>
+            <p>Morale Boost</p>
+        </div>
+        <div class="stat-item">
+            <h3>15m</h3>
+            <p>Daily Avg. Time</p>
+        </div>
+        <div class="stat-item">
+            <h3>1,400+</h3>
+            <p>Connections Made</p>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="section-title">
+            <h2>Everything your team needs to thrive</h2>
+            <p>We replace awkward forced fun with genuine interaction.</p>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-item">
+                <span class="f-icon">☕</span>
+                <h3>Speed Coffee</h3>
+                <p>Spontaneous 1:1 video chats with icebreakers. Recreate the "watercooler" moments digitally.</p>
+            </div>
+            <div class="feature-item">
+                <span class="f-icon">🎮</span>
+                <h3>Micro-Games</h3>
+                <p>Leaderboards for Wordle, Tetris, and Reaction games. Healthy competition that takes <5 mins.</p>
+            </div>
+            <div class="feature-item">
+                <span class="f-icon">🧘</span>
+                <h3>MeTime Wellness</h3>
+                <p>Guided box breathing, daily inspiration, and desk yoga diagrams to prevent burnout.</p>
+            </div>
+            <div class="feature-item">
+                <span class="f-icon">⚙️</span>
+                <h3>Admin Insights</h3>
+                <p>Track team sentiment, burnout risk, and engagement levels with a powerful employer dashboard.</p>
+            </div>
+            <div class="feature-item">
+                <span class="f-icon">📇</span>
+                <h3>People Directory</h3>
+                <p>See who is online, view rich profiles with hobbies, and connect instantly based on shared interests.</p>
+            </div>
+            <div class="feature-item">
+                <span class="f-icon">🪙</span>
+                <h3>Rewards System</h3>
+                <p>Gamify engagement. Employees earn coins for connecting, redeemable for real-world perks.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="pricing" class="pricing">
+        <div class="section-title">
+            <h2>Simple, flat monthly pricing</h2>
+            <p>No per-seat fees. Predictable costs as you scale.</p>
+        </div>
+        <div class="pricing-grid">
+            
+            <div class="price-card">
+                <h3>Starter</h3>
+                <div class="price">Free</div>
+                <span class="employee-limit">Up to 15 Employees</span>
+                <p>Perfect for small teams & startups.</p>
+                <ul class="features-list">
+                    <li>Speed Coffee Matching</li>
+                    <li>Basic Games (Wordle)</li>
+                    <li>People Directory</li>
+                    <li>Community Support</li>
+                </ul>
+                <a href="index.html" class="btn-primary" style="width:100%;">Start Free Trial</a>
+            </div>
+
+            <div class="price-card">
+                <h3>Basic</h3>
+                <div class="price">$35<span>/mo</span></div>
+                <span class="employee-limit">Up to 50 Employees</span>
+                <p>For growing remote companies.</p>
+                <ul class="features-list">
+                    <li>Everything in Starter</li>
+                    <li>Full Game Suite</li>
+                    <li>MeTime Wellness Tools</li>
+                    <li>Email Support</li>
+                </ul>
+                <a href="#contact" class="btn-outline" style="width:100%;">Contact Sales</a>
+            </div>
+
+            <div class="price-card featured">
+                <span class="tag-popular">MOST POPULAR</span>
+                <h3>Growth</h3>
+                <div class="price">$70<span>/mo</span></div>
+                <span class="employee-limit">Up to 250 Employees</span>
+                <p>Best value for mid-sized orgs.</p>
+                <ul class="features-list">
+                    <li>Everything in Basic</li>
+                    <li>Admin Analytics Dashboard</li>
+                    <li>Rewards Integration</li>
+                    <li>Priority Support</li>
+                </ul>
+                <a href="#contact" class="btn-primary" style="width:100%;">Contact Sales</a>
+            </div>
+
+            <div class="price-card">
+                <h3>Enterprise</h3>
+                <div class="price">Custom</div>
+                <span class="employee-limit">Unlimited Employees</span>
+                <p>For global organizations.</p>
+                <ul class="features-list">
+                    <li>Everything in Growth</li>
+                    <li>SSO (Okta/Google)</li>
+                    <li>Custom Branding</li>
+                    <li>Dedicated Success Mgr</li>
+                </ul>
+                <a href="#contact" class="btn-outline" style="width:100%;">Contact Sales</a>
+            </div>
+
+        </div>
+    </section>
+
+    <section id="contact" class="contact">
+        <div class="section-title">
+            <h2>Ready to transform your culture?</h2>
+            <p>Fill out the form below and our team will be in touch within 24 hours.</p>
+        </div>
+        <div class="contact-container">
+            <form onsubmit="event.preventDefault(); alert('Thanks for reaching out! We will be in touch shortly.');">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" placeholder="Jane Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Work Email</label>
+                    <input type="email" placeholder="jane@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Company Size</label>
+                    <select>
+                        <option>1-15 Employees</option>
+                        <option>16-50 Employees</option>
+                        <option>51-250 Employees</option>
+                        <option>250+ Employees</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Message / Specific Needs</label>
+                    <textarea placeholder="Tell us about your team's culture needs..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%;">Submit Request</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="about" class="about">
+        <div class="about-container">
+            <h2>Our Story</h2>
+            <p>
+                Since 2020, we've worked from kitchen tables, spare bedrooms, and corner cafes. While we loved the freedom of remote work, we felt something was missing: <strong>the spark.</strong>
+            </p>
+            <p>
+                The silence between meetings became deafening. We missed the accidental coffee chats, the shared laughs over bad office wifi, and the simple feeling of belonging to a team. We realized that while productivity tools helped us work, nothing was helping us <em>connect</em>.
+            </p>
+            <p>
+                We built WeTime to fill that silence. It's not about forced fun or mandatory happy hours. It's about creating a space where coworkers can feel like humans again—even if they're thousands of miles apart.
+            </p>
+            <div class="signature">
+                - Troy & Oliver, <span>Co-Founders</span>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="logo" style="margin-bottom: 20px;">We<span>Time</span></div>
+        <div class="footer-links">
+            <a href="#">Product</a>
+            <a href="#about">Our Story</a>
+            <a href="#">Careers</a>
+            <a href="#">Privacy</a>
+            <a href="#contact">Contact</a>
+        </div>
+        <p>&copy; 2025 WeTime Inc. All rights reserved. Made for remote humans.</p>
+    </footer>
+
+</body>
+</html>
