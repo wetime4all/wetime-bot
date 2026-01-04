@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeTime | Unified Platform</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+    <script src='https://meet.ffmuc.net/external_api.js'></script>
+
+    <style>
+        :root {
+            /* --- Unified Color Palette --- */
+            --primary: #6366f1;       /* Indigo: Main Brand */
+            --primary-dark: #4338ca;
+            --secondary: #1e293b;     /* Slate: Sidebar/Nav */
+            --accent: #F59E0B;        /* Gold: Currency/Awards */
+            --success: #10B981;       /* Green: Online/Success */
+            --danger: #EF4444;        /* Red: Burnout/End Call */
+            --bg: #f8fafc;            /* Light Grey Background */
+            --surface: #ffffff;       /* White Cards */
+            --text-main: #334155;
+            --text-light: #64748b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR NAVIGATION --- */
+        aside {
+            width: 260px;
+            background: var(--secondary);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            transition: 0.3s;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 40px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .logo span { color: var(--primary); background: white; padding: 2px 8px; border-radius: 6px; color: var(--secondary); }
+
+        .nav-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 12px;
+            color: #94a3b8;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-item.active { background: var(--primary); color: white; }
+        
+        .user-mini-profile {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+            display: flex; align-items: center; gap: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .user-mini-profile:hover { opacity: 0.8; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 0; }
+        .avatar-mini { width: 35px; height: 35px; background: #cbd5e1; border-radius: 50%; display:flex; align-items:center; justify-content:center;}
+
+        /* Sidebar Status Pill */
+        .status-pill {
+            font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; 
+            cursor: pointer; display: inline-block; margin-top: 2px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .status-available { background: var(--success); color: white; }
+        .status-busy { background: var(--danger); color: white; }
+
+        /* --- MAIN LAYOUT --- */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--surface);
+            padding: 15px 30px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* --- COIN PILL & TOOLTIP --- */
+        .coin-pill {
+            background: #FFFBEB;
+            border: 1px solid var(--accent);
+            color: #92400E;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            cursor: pointer;
+            position: relative;
+        }
+        .coin-tooltip {
+            visibility: hidden;
+            background-color: var(--secondary);
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 10px;
+            position: absolute;
+            z-index: 100;
+            top: 130%;
+            right: 0;
+            width: 220px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 0.8rem;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .coin-tooltip::after {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            right: 20px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: transparent transparent var(--secondary) transparent;
+        }
+        .coin-pill:hover .coin-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .role-toggle { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; }
+        .role-btn { padding: 6px 12px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: var(--text-light); }
+        .role-btn.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        /* --- VIEWS CONTAINER --- */
+        #content-area { flex: 1; overflow-y: auto; padding: 30px; position: relative; }
+        .view { display: none; animation: fadeIn 0.3s ease; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(5px); } to { opacity:1; transform: translateY(0); } }
+
+        .card { background: var(--surface); border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 24px; }
+
+        /* --- PROFILE VIEW STYLES --- */
+        .profile-header { display: flex; align-items: center; gap: 30px; margin-bottom: 30px; }
+        .profile-photo-container { position: relative; cursor: pointer; }
+        .profile-photo-large {
+            width: 120px; height: 120px; background: #e2e8f0; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 4rem; border: 4px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05); background-size: cover; background-position: center;
+        }
+        .profile-photo-large:hover { opacity: 0.9; border-color: var(--primary); }
+        .camera-overlay {
+            position: absolute; bottom: 5px; right: 5px; background: var(--primary); color: white;
+            width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); pointer-events: none;
+        }
+        .profile-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .info-box { padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+        .info-label { font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-light); display: block; margin-bottom: 5px; }
+
+        /* --- GAMES & METIME VIEW STYLES --- */
+        .game-split-container { display: flex; gap: 24px; height: calc(100vh - 250px); }
+        .game-window { flex: 2; background: #1e293b; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; cursor: pointer; overflow: hidden; }
+        .game-leaderboard-side { flex: 1; background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 20px; overflow-y: auto; }
+        .game-card { text-align: center; cursor: pointer; transition: 0.2s; border: 2px solid transparent; }
+        .game-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+
+        .breathing-circle { width: 150px; height: 150px; background: rgba(255,255,255,0.1); border: 4px solid var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; transition: all 4s ease-in-out; }
+        .breathe-in { transform: scale(1.5); background: rgba(99, 102, 241, 0.4); }
+        .breathe-out { transform: scale(1); background: rgba(255,255,255,0.1); }
+        .yoga-image-container { width: 100%; max-width: 400px; height: 300px; background: #f8fafc; border-radius: 12px; margin: 20px auto; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; }
+        .yoga-image-container img { width: 100%; height: 100%; object-fit: contain; }
+
+        .wordle-board { display: grid; grid-template-rows: repeat(6, 1fr); gap: 5px; margin-bottom: 20px; }
+        .wordle-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+        .wordle-cell { width: 50px; height: 50px; border: 2px solid #475569; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; text-transform: uppercase; }
+        .wordle-cell.correct { background: #10B981; border-color: #10B981; color: white; }
+        .wordle-cell.present { background: #F59E0B; border-color: #F59E0B; color: white; }
+        .wordle-cell.absent { background: #475569; border-color: #475569; color: white; }
+        #tetris-canvas { border: 2px solid #fff; background: #000; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+
+        /* --- PEOPLE GRID --- */
+        .people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .person-card { background: var(--surface); border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; text-align: center; position: relative; cursor: pointer; transition: 0.2s; }
+        .person-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 20px; right: 20px; }
+        .online { background: var(--success); }
+        .busy { background: var(--danger); }
+        .tag { font-size: 0.75rem; background: #e0e7ff; color: var(--primary); padding: 4px 10px; border-radius: 10px; display: inline-block; margin: 2px; font-weight: 500; }
+
+        /* --- FILTERS & UTILS --- */
+        .filter-bar { margin-bottom: 25px; display: flex; gap: 12px; background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
+        .filter-bar input, .filter-bar select { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: var(--text-light); padding: 12px; font-size: 0.85rem; border-bottom: 2px solid #f1f5f9; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+        .btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; }
+        .btn-secondary { background: #f1f5f9; color: var(--text-main); border: 1px solid #cbd5e1; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 15px; transition: 0.2s; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-danger { background: var(--danger); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .stat-num { font-size: 2rem; font-weight: 800; color: var(--primary); display: block; margin-bottom: 5px; }
+
+        /* --- MODAL --- */
+        #colleague-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: none; align-items: center; justify-content: center; }
+        .colleague-card { background: white; width: 90%; max-width: 500px; border-radius: 16px; padding: 30px; position: relative; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .colleague-avatar { width: 100px; height: 100px; background: #e2e8f0; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 3rem; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        /* --- VIDEO CALL MODAL OVERLAY --- */
+        #call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111827; z-index: 1000; display: none; flex-direction: column; color: white; }
+        #jitsi-container { flex: 1; width: 100%; height: 100%; }
+        .hud-panel { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(255,255,255,0.95); color: var(--text-main); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; }
+        .icebreaker-text { font-size: 1.2rem; font-weight: 600; margin: 15px 0; min-height: 50px; display: flex; align-items: center; justify-content: center; }
+        .hud-controls button { margin: 0 5px; padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
+        .hud-controls button.active { background: var(--primary); color: white; border-color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="logo">We<span>Time</span></div>
+        <div class="nav-item active" onclick="navigate('dashboard')"><span>🏠</span> Home</div>
+        <div class="nav-item" onclick="navigate('directory')"><span>📇</span> People Directory</div>
+        <div class="nav-item" onclick="navigate('leaderboard')"><span>🏆</span> Leaderboard</div>
+        <div class="nav-item" onclick="navigate('games')"><span>🎮</span> Games</div>
+        <div class="nav-item" onclick="navigate('metime')"><span>🧘</span> MeTime</div>
+        <div class="nav-item" id="nav-admin" style="display:none;" onclick="navigate('admin')"><span>⚙️</span> Employer Admin</div>
+
+        <div class="user-mini-profile" onclick="navigate('profile')" title="Edit Profile">
+            <div class="avatar-mini">👤</div>
+            <div style="font-size: 0.9rem;">
+                <div style="font-weight:bold; display: flex; align-items: center; gap: 6px;">
+                    <span id="current-user-name">Troy</span>
+                    <span style="font-size: 0.75rem; opacity: 0.6;">⚙️</span>
+                </div>
+                <div id="user-status-pill" class="status-pill status-available" onclick="toggleUserStatus()">Available</div>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <h2 id="page-title" style="margin:0;">Dashboard</h2>
+            <div style="display:flex; gap: 20px; align-items: center;">
+                <div class="role-toggle">
+                    <button class="role-btn active" onclick="setRole('employee')">Employee View</button>
+                    <button class="role-btn" onclick="setRole('employer')">Employer View</button>
+                </div>
+                <div class="coin-pill">
+                    <span>🪙</span> <span id="coin-balance">450</span>
+                    <div class="coin-tooltip">5,000 coins needed for a $20 UberEats Gift Card 🍔</div>
+                </div>
+            </div>
+        </header>
+
+        <div id="content-area">
+
+            <div id="view-dashboard" class="view active">
+                <div class="card" style="background: linear-gradient(135deg, var(--primary), #818cf8); color: white;">
+                    <h1 id="welcome-msg" style="margin:0;">Welcome back, Troy! 👋</h1>
+                    <p style="margin: 10px 0 0 0; opacity: 0.9;">You have <strong>15 minutes</strong> of break time available today.</p>
+                </div>
+                <h3>Quick Actions</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px;">
+                    <div class="card" style="text-align: center; cursor: pointer;" onclick="startMatching('1:1')">☕ Speed Coffee</div>
+                    <div class="card" style="text-align: center; cursor: pointer;" onclick="navigate('games')">🎮 Solo Break</div>
+                    <div class="card" style="text-align: center; cursor: pointer;" onclick="navigate('metime')">🧘 MeTime</div>
+                </div>
+            </div>
+
+            <div id="view-metime" class="view">
+                <div id="metime-selection">
+                    <h3>Select a Restoration Activity</h3>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                        <div class="card game-card" onclick="startBreathing()">
+                            <div style="font-size:3rem;">🌬️</div>
+                            <h4>Guided Breathing</h4>
+                            <p style="font-size:0.8rem; color:var(--text-light);">4-4-4 Box Breathing</p>
+                        </div>
+                        <div class="card game-card" onclick="startInspiration()">
+                            <div style="font-size:3rem;">💡</div>
+                            <h4>Daily Inspiration</h4>
+                            <p style="font-size:0.8rem; color:var(--text-light);">Positive quote of the day</p>
+                        </div>
+                        <div class="card game-card" onclick="startDeskYoga()">
+                            <div style="font-size:3rem;">🙆</div>
+                            <h4>Desk Yoga</h4>
+                            <p style="font-size:0.8rem; color:var(--text-light);">Visual stretching guide</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="metime-active" style="display:none; text-align:center; padding: 40px;">
+                    <button class="btn-primary" style="background:var(--secondary); margin-bottom:40px; width:auto;" onclick="backToMeTime()">← Back</button>
+                    <div id="metime-content"></div>
+                </div>
+            </div>
+
+            <div id="view-profile" class="view">
+                <div class="card">
+                    <div class="profile-header">
+                        <div class="profile-photo-container" onclick="document.getElementById('profile-upload').click()">
+                            <div class="profile-photo-large">
+                                <span id="profile-icon">👤</span>
+                            </div>
+                            <div class="camera-overlay">📷</div>
+                        </div>
+                        <input type="file" id="profile-upload" style="display: none;" accept="image/*" onchange="uploadPhoto(this)">
+                        
+                        <div>
+                            <h1 id="profile-name-display" style="margin:0; font-size: 2.5rem;">Troy</h1>
+                            <p style="color:var(--primary); font-weight: 600; font-size: 1.1rem; margin: 5px 0;">Operations Manager</p>
+                            <span class="tag" style="background:var(--success); color:white;">● Online Now</span>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 30px;">
+                        <span class="info-label">About Me</span>
+                        <p style="line-height: 1.6; color: var(--text-main);">Helping keep the gears turning at WeTime. I'm passionate about building inclusive remote cultures and finding the perfect espresso bean. When I'm not in meetings, you can find me hiking the Marin Headlands.</p>
+                    </div>
+                    <div class="profile-info-grid">
+                        <div class="info-box"><span class="info-label">Department</span><strong>Operations</strong></div>
+                        <div class="info-box"><span class="info-label">Date Started</span><strong>March 12, 2021</strong></div>
+                        <div class="info-box"><span class="info-label">Location</span><strong>San Francisco, CA</strong></div>
+                        <div class="info-box"><span class="info-label">Email</span><strong>troy@wetime.io</strong></div>
+                    </div>
+                    <div style="margin-top: 30px;">
+                        <span class="info-label">Interests & Hobbies</span>
+                        <div style="margin-top: 10px;">
+                            <span class="tag">Hiking</span> <span class="tag">Coffee</span> <span class="tag">Gaming</span> <span class="tag">Photography</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Connection Stats</h3>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top:20px;">
+                        <div style="text-align:center; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;"><span class="stat-num">124</span><span>Coffee Chats</span></div>
+                        <div style="text-align:center; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;"><span class="stat-num">12</span><span>Kudos Received</span></div>
+                        <div style="text-align:center; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;"><span class="stat-num" id="stat-coins">0</span><span>Coins Earned</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-directory" class="view">
+                <div class="filter-bar">
+                    <input type="text" id="searchName" placeholder="Search by name..." style="flex: 2;" onkeyup="filterDirectory()">
+                    <select id="filterDept" style="flex: 1;" onchange="filterDirectory()">
+                        <option value="">All Departments</option>
+                        <option value="Product">Product</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Engineering">Engineering</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="HR">HR</option>
+                    </select>
+                    <select id="filterInterest" style="flex: 1;" onchange="filterDirectory()">
+                        <option value="">All Interests</option>
+                        <option value="Gaming">Gaming</option>
+                        <option value="Foodie">Foodie</option>
+                        <option value="Pickleball">Pickleball</option>
+                        <option value="Movies">Movies</option>
+                        <option value="Hiking">Hiking</option>
+                        <option value="Art">Art</option>
+                        <option value="Reading">Reading</option>
+                        <option value="Golf">Golf</option>
+                    </select>
+                </div>
+                <div class="people-grid" id="peopleGrid">
+                    <div class="person-card" data-dept="Product" data-interests="Gaming, Foodie" onclick="openColleagueModal('Sarah Jenkins', 'Product Manager', '👩‍💻', 'Austin, TX', 'Loves MMOs, Tacos, and Agile methodologies.', ['Gaming', 'Foodie'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">👩‍💻</div><h3 class="name">Sarah Jenkins</h3><p>Product Manager</p><div class="tags"><span class="tag">Gaming</span> <span class="tag">Foodie</span></div><button class="btn-primary">Connect ☕</button></div>
+                    <div class="person-card" data-dept="Sales" data-interests="Pickleball, Movies" onclick="openColleagueModal('Bob Smith', 'Sales Lead', '👨‍💼', 'Chicago, IL', 'Sales leader with a passion for classic cinema.', ['Pickleball', 'Movies'], 'busy')"><div class="status-dot busy"></div><div style="font-size: 3rem;">👨‍💼</div><h3 class="name">Bob Smith</h3><p>Sales Lead</p><div class="tags"><span class="tag">Pickleball</span> <span class="tag">Movies</span></div><button class="btn-primary" style="background:#cbd5e1; cursor:not-allowed;">In Meeting</button></div>
+                    <div class="person-card" data-dept="Design" data-interests="Art, Hiking" onclick="openColleagueModal('Priya Patel', 'Lead Designer', '👩‍🎨', 'New York, NY', 'Visual storyteller. Weekends are for galleries.', ['Art', 'Hiking'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">👩‍🎨</div><h3 class="name">Priya Patel</h3><p>Lead Designer</p><div class="tags"><span class="tag">Art</span> <span class="tag">Hiking</span></div><button class="btn-primary">Connect ☕</button></div>
+                    <div class="person-card" data-dept="Engineering" data-interests="Gaming, Art" onclick="openColleagueModal('Marcus Wong', 'Senior Engineer', '👨‍💻', 'Seattle, WA', 'Full stack dev. Building digital worlds.', ['Gaming', 'Art'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">👨‍💻</div><h3 class="name">Marcus Wong</h3><p>Senior Engineer</p><div class="tags"><span class="tag">Gaming</span> <span class="tag">Art</span></div><button class="btn-primary">Connect ☕</button></div>
+                    <div class="person-card" data-dept="Marketing" data-interests="Foodie" onclick="openColleagueModal('Elena Rodriguez', 'Marketing Mgr', '👩‍🦰', 'Miami, FL', 'Brand strategist. Food blogger by night.', ['Foodie'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">👩‍🦰</div><h3 class="name">Elena Rodriguez</h3><p>Marketing Mgr</p><div class="tags"><span class="tag">Foodie</span></div><button class="btn-primary">Connect ☕</button></div>
+                    <div class="person-card" data-dept="Engineering" data-interests="Gaming, Hiking" onclick="openColleagueModal('David Kim', 'DevOps', '👨‍🔬', 'San Francisco, CA', 'Infrastructure wizard. Hiking the PCT.', ['Gaming', 'Hiking'], 'busy')"><div class="status-dot busy"></div><div style="font-size: 3rem;">👨‍🔬</div><h3 class="name">David Kim</h3><p>DevOps</p><div class="tags"><span class="tag">Gaming</span> <span class="tag">Hiking</span></div><button class="btn-primary" style="background:#cbd5e1; cursor:not-allowed;">In Meeting</button></div>
+                    <div class="person-card" data-dept="HR" data-interests="Reading, Art" onclick="openColleagueModal('Aisha Johnson', 'HR Director', '👩‍🏫', 'Atlanta, GA', 'People first. Book club president.', ['Reading', 'Art'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">👩‍🏫</div><h3 class="name">Aisha Johnson</h3><p>HR Director</p><div class="tags"><span class="tag">Reading</span> <span class="tag">Art</span></div><button class="btn-primary">Connect ☕</button></div>
+                    <div class="person-card" data-dept="Sales" data-interests="Golf, Movies" onclick="openColleagueModal('Tom Baker', 'Account Exec', '🧔', 'London, UK', 'Global accounts. Improving handicap.', ['Golf', 'Movies'], 'online')"><div class="status-dot online"></div><div style="font-size: 3rem;">🧔</div><h3 class="name">Tom Baker</h3><p>Account Exec</p><div class="tags"><span class="tag">Golf</span> <span class="tag">Movies</span></div><button class="btn-primary">Connect ☕</button></div>
+                </div>
+            </div>
+
+            <div id="view-leaderboard" class="view">
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div class="card">
+                        <h3>⚡ Reaction Speed</h3>
+                        <table id="lb-reaction"><thead><tr><th>Rank</th><th>User</th><th>Score</th></tr></thead><tbody id="body-reaction"></tbody></table>
+                        <button class="btn-secondary" onclick="alert('Full rankings coming soon!')">View More</button>
+                    </div>
+                    <div class="card">
+                        <h3>🔠 Wordle</h3>
+                        <table id="lb-wordle"><thead><tr><th>Rank</th><th>User</th><th>Score</th></tr></thead><tbody id="body-wordle"></tbody></table>
+                        <button class="btn-secondary" onclick="alert('Full rankings coming soon!')">View More</button>
+                    </div>
+                    <div class="card">
+                        <h3>🧱 Tetris</h3>
+                        <table id="lb-tetris"><thead><tr><th>Rank</th><th>User</th><th>Score</th></tr></thead><tbody id="body-tetris"></tbody></table>
+                        <button class="btn-secondary" onclick="alert('Full rankings coming soon!')">View More</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-games" class="view">
+                <div id="game-selection">
+                    <h3>Select a Solo Micro-Break</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                        <div class="card game-card" onclick="startReactionGame()"><div style="font-size:3rem;">⚡</div><h4>Reaction</h4><p style="font-size:0.8rem; color:var(--text-light);">Click when it turns green.</p></div>
+                        <div class="card game-card" onclick="startWordleGame()"><div style="font-size:3rem;">🔠</div><h4>Wordle</h4><p style="font-size:0.8rem; color:var(--text-light);">Guess the 5-letter word.</p></div>
+                        <div class="card game-card" onclick="startTetrisGame()"><div style="font-size:3rem;">🧱</div><h4>Tetris</h4><p style="font-size:0.8rem; color:var(--text-light);">Classic line clearing.</p></div>
+                    </div>
+                </div>
+                <div id="game-play-area" style="display:none;">
+                    <button class="btn-primary" style="background:var(--secondary); margin-bottom:20px; width:auto;" onclick="exitGame()">← Back</button>
+                    <div class="game-split-container">
+                        <div class="game-window" id="game-canvas-container"></div>
+                        <div class="game-leaderboard-side">
+                            <h3 id="game-side-lb-title">Leaderboard</h3>
+                            <table><thead><tr><th>User</th><th>Score</th></tr></thead><tbody id="game-side-lb-body"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-admin" class="view">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                    <div class="card"><span class="stat-num">88%</span> Morale Score</div>
+                    <div class="card"><span class="stat-num">1,402</span> Connections</div>
+                    <div class="card"><span class="stat-num" style="color:var(--danger);">12%</span> Burnout Risk</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="colleague-modal" onclick="closeColleagueModal(event)">
+        <div class="colleague-card">
+            <button onclick="closeColleagueModal(null)" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+            <div class="colleague-avatar" id="modal-avatar"></div>
+            <h2 id="modal-name" style="margin:0;"></h2>
+            <p id="modal-role" style="color:var(--primary); font-weight:600; margin:5px 0;"></p>
+            <p id="modal-location" style="color:var(--text-light); font-size:0.9rem; margin-bottom:20px;">📍 Location</p>
+            <div style="text-align:left; background:#f8fafc; padding:15px; border-radius:10px; margin-bottom:20px;">
+                <small style="text-transform:uppercase; font-weight:bold; color:var(--text-light);">About</small>
+                <p id="modal-bio" style="margin:5px 0;">...</p>
+                <div id="modal-tags" style="margin-top:10px;"></div>
+            </div>
+            <button id="modal-action-btn" class="btn-primary">Start Coffee Chat ☕</button>
+        </div>
+    </div>
+
+    <div id="call-overlay">
+        <div class="call-actions"><button class="btn-danger" onclick="endCall()">End Call</button></div>
+        <div id="jitsi-container"></div>
+        <div class="hud-panel">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                <small style="font-weight:bold; color:var(--primary);">🧊 ICEBREAKER HUD</small>
+                <small style="cursor:pointer;" onclick="nextQuestion()">Skip ↻</small>
+            </div>
+            <div class="hud-controls">
+                <button class="active" onclick="setCategory('fun', this)">Fun</button>
+                <button onclick="setCategory('deep', this)">Deep</button>
+                <button onclick="setCategory('work', this)">Work</button>
+            </div>
+            <div class="icebreaker-text" id="question-display">"What is the best meal you've had recently?"</div>
+        </div>
+    </div>
+
+    <div id="overlay-feedback" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); z-index:999; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+        <div style="font-size:3rem;">🎉</div>
+        <h2>Great Session!</h2>
+        <p>You earned <strong>+50 Coins</strong>.</p>
+        <button class="btn-primary" style="width: auto;" onclick="closeFeedback()">Back to Dashboard</button>
+    </div>
+
+    <script>
+        // FIREBASE
+        const firebaseConfig = { apiKey: "AIzaSyBMFYXNMF2tooZ3qC8Td_UnazsyndRxQpo", authDomain: "wetime-db.firebaseapp.com", projectId: "wetime-db", storageBucket: "wetime-db.firebasestorage.app", messagingSenderId: "1091777307544", appId: "1:1091777307544:web:060a10ad3c4be53171c1ed" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user') && urlParams.get('user') !== 'undefined' ? urlParams.get('user') : 'Troy';
+        
+        let coinBalance = 0;
+        let jitsiApi = null;
+        let metimeInterval = null;
+
+        // LEADERBOARD DATA & LOGIC
+        const leaderboards = {
+            'Reaction': [{name: 'Michael J.', score: 180, suffix: 'ms'}, {name: 'Sarah A.', score: 195, suffix: 'ms'}, {name: 'David K.', score: 210, suffix: 'ms'}, {name: 'Troy (You)', score: 245, suffix: 'ms'}, {name: 'Elena R.', score: 300, suffix: 'ms'}],
+            'Wordle': [{name: 'Aisha J.', score: 2, suffix: ' Tries'}, {name: 'Marcus W.', score: 3, suffix: ' Tries'}, {name: 'Sarah J.', score: 3, suffix: ' Tries'}, {name: 'Bob S.', score: 4, suffix: ' Tries'}, {name: 'Troy (You)', score: 5, suffix: ' Tries'}],
+            'Tetris': [{name: 'Priya P.', score: 120500, suffix: ''}, {name: 'David K.', score: 98000, suffix: ''}, {name: 'Marcus W.', score: 85400, suffix: ''}, {name: 'Michael J.', score: 72000, suffix: ''}, {name: 'Troy (You)', score: 45000, suffix: ''}]
+        };
+
+        function renderLeaderboards() {
+            ['Reaction', 'Wordle', 'Tetris'].forEach(game => {
+                const tbody = document.getElementById('body-' + game.toLowerCase());
+                if(tbody) {
+                    tbody.innerHTML = leaderboards[game].map((entry, i) => `<tr><td>${i+1}</td><td>${entry.name}</td><td>${entry.score.toLocaleString()}${entry.suffix}</td></tr>`).join('');
+                }
+            });
+        }
+
+        function submitScore(game, rawScore) {
+            let list = leaderboards[game];
+            let suffix = game === 'Reaction' ? 'ms' : (game === 'Wordle' ? ' Tries' : '');
+            list.push({name: userId + ' (You)', score: rawScore, suffix: suffix});
+            if(game === 'Tetris') list.sort((a, b) => b.score - a.score);
+            else list.sort((a, b) => a.score - b.score);
+            leaderboards[game] = list.slice(0, 5);
+            renderLeaderboards();
+            const sideBody = document.getElementById('game-side-lb-body');
+            const sideTitle = document.getElementById('game-side-lb-title');
+            if(sideBody && sideTitle && sideTitle.innerText.includes(game)) {
+                sideBody.innerHTML = leaderboards[game].map((entry, i) => `<tr><td>${entry.name}</td><td>${entry.score.toLocaleString()}${entry.suffix}</td></tr>`).join('');
+            }
+        }
+
+        window.onload = function() {
+            const roomName = urlParams.get('room');
+            if (roomName) startVideoCall(roomName);
+            renderLeaderboards();
+        };
+
+        db.collection('users').doc(userId).onSnapshot((doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                coinBalance = data.coins || 0;
+                document.getElementById('coin-balance').innerText = coinBalance;
+                document.getElementById('current-user-name').innerText = data.name || userId;
+                document.getElementById('profile-name-display').innerText = data.name || userId;
+                if (data.photoURL) {
+                    const large = document.querySelector('.profile-photo-large');
+                    large.style.backgroundImage = `url('${data.photoURL}')`;
+                    document.getElementById('profile-icon').style.display = 'none';
+                    const mini = document.querySelector('.avatar-mini');
+                    mini.style.backgroundImage = `url('${data.photoURL}')`;
+                    mini.innerText = '';
+                }
+            } else { db.collection('users').doc(userId).set({ coins: 450, name: userId }); }
+        });
+
+        function uploadPhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const large = document.querySelector('.profile-photo-large');
+                large.style.backgroundImage = `url('${e.target.result}')`;
+                document.getElementById('profile-icon').style.display = 'none';
+                const mini = document.querySelector('.avatar-mini');
+                mini.style.backgroundImage = `url('${e.target.result}')`;
+                mini.innerText = '';
+            }
+            reader.readAsDataURL(file);
+            const storageRef = firebase.storage().ref();
+            const userRef = storageRef.child(`users/${userId}/profile.jpg`);
+            userRef.put(file).then((snapshot) => snapshot.ref.getDownloadURL()).then((downloadURL) => {
+                db.collection('users').doc(userId).update({ photoURL: downloadURL });
+            });
+        }
+
+        function toggleUserStatus() {
+            const pill = document.getElementById('user-status-pill');
+            if (pill.classList.contains('status-available')) { pill.classList.replace('status-available', 'status-busy'); pill.innerText = 'Busy'; }
+            else { pill.classList.replace('status-busy', 'status-available'); pill.innerText = 'Available'; }
+        }
+
+        function navigate(viewId) {
+            document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            const map = {dashboard:0, directory:1, leaderboard:2, games:3, metime:4};
+            if(map[viewId] !== undefined) document.querySelectorAll('aside .nav-item')[map[viewId]].classList.add('active');
+            if(viewId === 'admin') document.getElementById('nav-admin').classList.add('active');
+            document.getElementById('page-title').innerText = viewId.charAt(0).toUpperCase() + viewId.slice(1);
+        }
+
+        function setRole(role) {
+            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('nav-admin').style.display = (role === 'employer') ? 'flex' : 'none';
+            navigate((role === 'employer') ? 'admin' : 'dashboard');
+        }
+
+        function filterDirectory() {
+            const searchText = document.getElementById('searchName').value.toLowerCase();
+            const selectedDept = document.getElementById('filterDept').value;
+            const selectedInterest = document.getElementById('filterInterest').value;
+            document.querySelectorAll('.person-card').forEach(card => {
+                const name = card.querySelector('.name').innerText.toLowerCase();
+                const dept = card.getAttribute('data-dept');
+                const interests = card.getAttribute('data-interests') ? card.getAttribute('data-interests').toLowerCase() : "";
+                const matchesSearch = name.includes(searchText);
+                const matchesDept = (!selectedDept || dept === selectedDept);
+                const matchesInterest = (!selectedInterest || interests.includes(selectedInterest.toLowerCase()));
+                card.style.display = (matchesSearch && matchesDept && matchesInterest) ? "block" : "none";
+            });
+        }
+
+        // --- UPDATED MODAL LOGIC (Checks Status) ---
+        function openColleagueModal(name, role, avatar, location, bio, interests, status) {
+            if(event.target.tagName === 'BUTTON') return; 
+            
+            document.getElementById('modal-name').innerText = name;
+            document.getElementById('modal-role').innerText = role;
+            document.getElementById('modal-avatar').innerText = avatar;
+            document.getElementById('modal-location').innerText = '📍 ' + location;
+            document.getElementById('modal-bio').innerText = bio;
+            const tagsContainer = document.getElementById('modal-tags');
+            tagsContainer.innerHTML = '';
+            interests.forEach(interest => { const span = document.createElement('span'); span.className = 'tag'; span.innerText = interest; tagsContainer.appendChild(span); });
+            
+            // STATUS CHECK LOGIC
+            const btn = document.getElementById('modal-action-btn');
+            if (status === 'busy') {
+                btn.style.background = '#cbd5e1';
+                btn.style.cursor = 'not-allowed';
+                btn.innerText = 'In Meeting 🚫';
+                btn.onclick = null; // Disable click
+            } else {
+                btn.style.background = 'var(--primary)';
+                btn.style.cursor = 'pointer';
+                btn.innerText = 'Start Coffee Chat ☕';
+                btn.onclick = function() { startMatching('1:1'); }; // Enable click
+            }
+
+            document.getElementById('colleague-modal').style.display = 'flex';
+        }
+
+        function closeColleagueModal(e) { if(e === null || e.target.id === 'colleague-modal') document.getElementById('colleague-modal').style.display = 'none'; }
+
+        function backToMeTime() {
+            document.getElementById('metime-selection').style.display = 'grid';
+            document.getElementById('metime-active').style.display = 'none';
+            document.getElementById('metime-content').innerHTML = '';
+            if(metimeInterval) clearInterval(metimeInterval);
+        }
+
+        function startBreathing() {
+            document.getElementById('metime-selection').style.display = 'none';
+            document.getElementById('metime-active').style.display = 'block';
+            const container = document.getElementById('metime-content');
+            container.innerHTML = `<h2>Box Breathing</h2><div style="display:flex; justify-content:center; margin: 40px 0;"><div id="breathe-circle" class="breathing-circle">Inhale</div></div><p id="breathe-text">Inhale for 4 seconds...</p>`;
+            const circle = document.getElementById('breathe-circle');
+            const text = document.getElementById('breathe-text');
+            let phase = 0;
+            metimeInterval = setInterval(() => {
+                phase = (phase + 1) % 4;
+                if(phase === 0) { circle.className = "breathing-circle breathe-in"; circle.innerText = "Inhale"; text.innerText = "Inhale..."; }
+                else if (phase === 1) { circle.className = "breathing-circle breathe-in"; circle.innerText = "Hold"; text.innerText = "Hold..."; }
+                else if (phase === 2) { circle.className = "breathing-circle breathe-out"; circle.innerText = "Exhale"; text.innerText = "Exhale..."; }
+                else { circle.className = "breathing-circle breathe-out"; circle.innerText = "Hold"; text.innerText = "Hold..."; }
+            }, 4000);
+        }
+
+        function startInspiration() {
+            document.getElementById('metime-selection').style.display = 'none';
+            document.getElementById('metime-active').style.display = 'block';
+            const quotes = ["The only way to do great work is to love what you do. - Steve Jobs", "Believe you can and you're halfway there. - Theodore Roosevelt", "Success is not final, failure is not fatal: it is the courage to continue that counts. - Winston Churchill"];
+            const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+            const container = document.getElementById('metime-content');
+            container.innerHTML = `<div style="font-size: 4rem; margin-bottom: 20px;">💡</div><h2 style="font-style: italic; line-height: 1.6; max-width: 600px; margin: 0 auto;">"${randomQuote}"</h2>`;
+        }
+
+        const yogaImages = {
+            neck: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300' style='background:%23f8fafc;'><circle cx='200' cy='100' r='40' fill='%23cbd5e1' stroke='%23334155' stroke-width='3'/><path d='M 160 140 Q 200 160 240 140 L 240 250 L 160 250 Z' fill='%236366f1'/><path d='M 260 80 Q 300 120 260 160' stroke='%23ef4444' stroke-width='5' fill='none' marker-end='url(%23arrow)'/><defs><marker id='arrow' markerWidth='10' markerHeight='10' refX='0' refY='3' orient='auto' markerUnits='strokeWidth'><path d='M0,0 L0,6 L9,3 z' fill='%23ef4444'/></marker></defs><text x='200' y='280' font-family='sans-serif' font-size='18' text-anchor='middle' fill='%23334155'>Tilt head gently to side</text></svg>",
+            shoulders: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300' style='background:%23f8fafc;'><circle cx='200' cy='80' r='35' fill='%23cbd5e1' stroke='%23334155' stroke-width='3'/><path d='M 140 120 Q 200 120 260 120 L 260 220 L 140 220 Z' fill='%236366f1'/><path d='M 110 160 L 110 100' stroke='%23ef4444' stroke-width='5' marker-end='url(%23arrow)'/><path d='M 290 160 L 290 100' stroke='%23ef4444' stroke-width='5' marker-end='url(%23arrow)'/><defs><marker id='arrow' markerWidth='10' markerHeight='10' refX='0' refY='3' orient='auto' markerUnits='strokeWidth'><path d='M0,0 L0,6 L9,3 z' fill='%23ef4444'/></marker></defs><text x='200' y='280' font-family='sans-serif' font-size='18' text-anchor='middle' fill='%23334155'>Lift shoulders up, then release</text></svg>",
+            twist: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300' style='background:%23f8fafc;'><circle cx='200' cy='70' r='35' fill='%23cbd5e1' stroke='%23334155' stroke-width='3'/><path d='M 160 110 L 240 110 L 230 220 L 170 220 Z' fill='%236366f1'/><path d='M 130 150 Q 200 120 270 150' stroke='%23ef4444' stroke-width='5' fill='none' marker-end='url(%23arrow)'/><defs><marker id='arrow' markerWidth='10' markerHeight='10' refX='0' refY='3' orient='auto' markerUnits='strokeWidth'><path d='M0,0 L0,6 L9,3 z' fill='%23ef4444'/></marker></defs><text x='200' y='280' font-family='sans-serif' font-size='18' text-anchor='middle' fill='%23334155'>Gently twist torso left and right</text></svg>"
+        };
+
+        function startDeskYoga() {
+            document.getElementById('metime-selection').style.display = 'none';
+            document.getElementById('metime-active').style.display = 'block';
+            const container = document.getElementById('metime-content');
+            const poses = [{name: "Neck Stretch", img: yogaImages.neck}, {name: "Shoulder Shrug", img: yogaImages.shoulders}, {name: "Seated Twist", img: yogaImages.twist}];
+            let i = 0;
+            function renderPose(idx) { container.innerHTML = `<h2 id="yoga-pose">${poses[idx].name}</h2><div class="yoga-image-container"><img src="${poses[idx].img}" alt="${poses[idx].name}"></div><p>Hold for 10 seconds...</p>`; }
+            renderPose(0);
+            metimeInterval = setInterval(() => { i = (i + 1) % poses.length; renderPose(i); }, 10000);
+        }
+
+        function startVideoCall(roomName) {
+            document.getElementById('call-overlay').style.display = 'flex';
+            const domain = "meet.ffmuc.net";
+            const options = { roomName: roomName, parentNode: document.querySelector('#jitsi-container'), width: "100%", height: "100%" };
+            jitsiApi = new JitsiMeetExternalAPI(domain, options);
+            jitsiApi.addEventListener('videoConferenceLeft', () => endCall());
+            nextQuestion();
+        }
+
+        function startMatching(type) {
+            if(type === 'metime') { alert("MeTime Activated! 🧘"); return; }
+            const randomRoom = 'WeTime-' + Math.random().toString(36).substring(7);
+            startVideoCall(randomRoom);
+        }
+
+        function endCall() {
+            if (jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
+            document.getElementById('call-overlay').style.display = 'none';
+            document.getElementById('overlay-feedback').style.display = 'flex';
+            if (userId) db.collection('users').doc(userId).update({ coins: firebase.firestore.FieldValue.increment(50) });
+        }
+
+        function closeFeedback() {
+            document.getElementById('overlay-feedback').style.display = 'none';
+            navigate('dashboard');
+        }
+
+        const questionsList = { fun: ["Best meal recently?", "Favorite movie?"], deep: ["Career influence?", "New skill?"], work: ["Current project?", "Focus hack?"] };
+        function setCategory(cat, btn) {
+            currentCategory = cat;
+            document.querySelectorAll('.hud-controls button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            nextQuestion();
+        }
+        function nextQuestion() {
+            const list = questionsList[currentCategory];
+            document.getElementById('question-display').innerText = `"${list[Math.floor(Math.random() * list.length)]}"`;
+        }
+
+        const gameContainer = document.getElementById('game-canvas-container');
+        let tetrisInterval = null;
+
+        function showGameUI(title) {
+            document.getElementById('game-selection').style.display = 'none';
+            document.getElementById('game-play-area').style.display = 'block';
+            document.getElementById('game-side-lb-title').innerText = title + " High Scores";
+            gameContainer.innerHTML = "";
+            const sideBody = document.getElementById('game-side-lb-body');
+            const gameKey = title.split(' ')[0]; 
+            if(leaderboards[gameKey]) {
+                sideBody.innerHTML = leaderboards[gameKey].map((entry, i) => `<tr><td>${entry.name}</td><td>${entry.score.toLocaleString()}${entry.suffix}</td></tr>`).join('');
+            }
+        }
+
+        function exitGame() {
+            document.getElementById('game-selection').style.display = 'block';
+            document.getElementById('game-play-area').style.display = 'none';
+            stopAllGames();
+        }
+
+        function stopAllGames() {
+            if(tetrisInterval) clearInterval(tetrisInterval);
+            document.removeEventListener('keydown', wordleKeydown);
+            document.removeEventListener('keydown', tetrisKeydown);
+        }
+
+        /* --- REACTION GAME --- */
+        function startReactionGame() {
+            showGameUI("Reaction Speed");
+            gameContainer.innerHTML = `<h2 id="reaction-msg">Click to Start</h2>`;
+            gameContainer.style.background = "#1e293b";
+            let state = "idle", timeout, startTime;
+            gameContainer.onclick = () => {
+                if(state === "idle") {
+                    state = "waiting";
+                    gameContainer.style.background = "#EF4444";
+                    document.getElementById('reaction-msg').innerText = "Wait for green...";
+                    timeout = setTimeout(() => { state = "clicknow"; gameContainer.style.background = "#10B981"; document.getElementById('reaction-msg').innerText = "CLICK!"; startTime = Date.now(); }, Math.random() * 3000 + 2000);
+                } else if(state === "waiting") {
+                    clearTimeout(timeout);
+                    state = "idle";
+                    gameContainer.style.background = "#1e293b";
+                    document.getElementById('reaction-msg').innerText = "Too soon! Click to restart.";
+                } else if(state === "clicknow") {
+                    let reaction = Date.now() - startTime;
+                    state = "idle";
+                    gameContainer.style.background = "#1e293b";
+                    document.getElementById('reaction-msg').innerText = reaction + "ms! Click to try again.";
+                    submitScore('Reaction', reaction);
+                }
+            };
+        }
+
+        /* --- WORDLE GAME --- */
+        const TARGET_WORD = "FOCUS";
+        let wordleRow = 0, wordleGuess = "";
+        function startWordleGame() {
+            showGameUI("Wordle");
+            wordleRow = 0; wordleGuess = "";
+            let html = '<div class="wordle-board">';
+            for(let i=0; i<6; i++) { html += '<div class="wordle-row">'; for(let j=0; j<5; j++) html += `<div class="wordle-cell" id="w-${i}-${j}"></div>`; html += '</div>'; }
+            html += '</div><p>Type letters and press Enter</p>';
+            gameContainer.innerHTML = html;
+            document.addEventListener('keydown', wordleKeydown);
+        }
+        function wordleKeydown(e) {
+            if(e.key === "Enter" && wordleGuess.length === 5) checkWordle();
+            else if(e.key === "Backspace") { wordleGuess = wordleGuess.slice(0, -1); updateWordleUI(); }
+            else if(/^[a-z]$/i.test(e.key) && wordleGuess.length < 5) { wordleGuess += e.key.toUpperCase(); updateWordleUI(); }
+        }
+        function updateWordleUI() { for(let i=0; i<5; i++) document.getElementById(`w-${wordleRow}-${i}`).innerText = wordleGuess[i] || ""; }
+        function checkWordle() {
+            for(let i=0; i<5; i++) {
+                let cell = document.getElementById(`w-${wordleRow}-${i}`);
+                let char = wordleGuess[i];
+                if(char === TARGET_WORD[i]) cell.classList.add('correct');
+                else if(TARGET_WORD.includes(char)) cell.classList.add('present');
+                else cell.classList.add('absent');
+            }
+            if(wordleGuess === TARGET_WORD) { submitScore('Wordle', (wordleRow+1)); document.removeEventListener('keydown', wordleKeydown); alert("You won!"); }
+            else { wordleRow++; wordleGuess = ""; if(wordleRow === 6) alert("Game over! The word was " + TARGET_WORD); }
+        }
+
+        /* --- TETRIS GAME --- */
+        let tetrisCanvas, ctx, tetrisBoard, tetrisPiece, tetrisScore;
+        const COLS = 10, ROWS = 20, SQ = 20;
+        function startTetrisGame() {
+            showGameUI("Tetris");
+            gameContainer.innerHTML = `<h3 id="t-score">Score: 0</h3><canvas id="tetris-canvas" width="200" height="400"></canvas>`;
+            tetrisCanvas = document.getElementById('tetris-canvas');
+            ctx = tetrisCanvas.getContext('2d');
+            tetrisScore = 0;
+            tetrisBoard = Array.from({length: ROWS}, () => Array(COLS).fill("black"));
+            drawBoard();
+            newPiece();
+            document.addEventListener('keydown', tetrisKeydown);
+            tetrisInterval = setInterval(tetrisMove, 500);
+        }
+        function drawBoard() { for(r=0; r<ROWS; r++) for(c=0; c<COLS; c++) drawSquare(c, r, tetrisBoard[r][c]); }
+        function drawSquare(x, y, color) { ctx.fillStyle = color; ctx.fillRect(x*SQ, y*SQ, SQ, SQ); ctx.strokeStyle = "#222"; ctx.strokeRect(x*SQ, y*SQ, SQ, SQ); }
+        function newPiece() {
+            const shapes = [[[1,1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]]];
+            const colors = ["cyan", "yellow", "purple", "green", "red", "orange", "blue"];
+            let r = Math.floor(Math.random() * shapes.length);
+            tetrisPiece = { x: 3, y: 0, shape: shapes[r], color: colors[r] };
+        }
+        function rotate(matrix) { return matrix[0].map((_, index) => matrix.map(col => col[index]).reverse()); }
+        function tetrisMove() {
+            if(!collision(0, 1, tetrisPiece.shape)) tetrisPiece.y++;
+            else {
+                lockPiece();
+                newPiece();
+                if(collision(0,0, tetrisPiece.shape)) { clearInterval(tetrisInterval); alert("Game Over!"); submitScore('Tetris', tetrisScore); }
+            }
+            renderTetris();
+        }
+        function lockPiece() {
+            tetrisPiece.shape.forEach((row, i) => row.forEach((v, j) => { if(v) tetrisBoard[tetrisPiece.y + i][tetrisPiece.x + j] = tetrisPiece.color; }));
+            for(let r = ROWS - 1; r >= 0; r--) {
+                let isFull = true;
+                for(let c = 0; c < COLS; c++) if(tetrisBoard[r][c] === "black") { isFull = false; break; }
+                if(isFull) { tetrisBoard.splice(r, 1); tetrisBoard.unshift(Array(COLS).fill("black")); tetrisScore += 1000; document.getElementById('t-score').innerText = "Score: " + tetrisScore; r++; }
+            }
+        }
+        function collision(nx, ny, shape) {
+            return shape.some((row, i) => row.some((v, j) => {
+                if(!v) return false;
+                let x = tetrisPiece.x + j + nx;
+                let y = tetrisPiece.y + i + ny;
+                return x < 0 || x >= COLS || y >= ROWS || (y >= 0 && tetrisBoard[y][x] !== "black");
+            }));
+        }
+        function tetrisKeydown(e) {
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
+            if(e.key === "ArrowLeft" && !collision(-1, 0, tetrisPiece.shape)) tetrisPiece.x--;
+            if(e.key === "ArrowRight" && !collision(1, 0, tetrisPiece.shape)) tetrisPiece.x++;
+            if(e.key === "ArrowDown" && !collision(0, 1, tetrisPiece.shape)) tetrisPiece.y++;
+            if(e.key === "ArrowUp") {
+                let nextPattern = rotate(tetrisPiece.shape);
+                if(!collision(0, 0, nextPattern)) tetrisPiece.shape = nextPattern;
+                else if(!collision(-1, 0, nextPattern)) { tetrisPiece.x -= 1; tetrisPiece.shape = nextPattern; }
+                else if(!collision(1, 0, nextPattern)) { tetrisPiece.x += 1; tetrisPiece.shape = nextPattern; }
+            }
+            renderTetris();
+        }
+        function renderTetris() {
+            drawBoard();
+            tetrisPiece.shape.forEach((row, i) => row.forEach((v, j) => { if(v) drawSquare(tetrisPiece.x + j, tetrisPiece.y + i, tetrisPiece.color); }));
+        }
+    </script>
+</body>
+</html>
