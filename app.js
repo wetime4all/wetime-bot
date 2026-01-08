@@ -20,8 +20,7 @@ function createVideoRoom(userId) {
   const uniqueId = Math.random().toString(36).substring(2, 12);
   const roomName = `WeTime-${uniqueId}`;
   
-  // This helper is for the video calls (Speed Coffee)
-  // We use your real URL here too.
+  // Your GitHub URL
   const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
   
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
@@ -29,8 +28,7 @@ function createVideoRoom(userId) {
 
 // --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
-  // 👇 THIS IS THE CRITICAL PART
-  // We define your base URL here.
+  // Your GitHub URL
   const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
 
   return [
@@ -38,7 +36,7 @@ const getDashboardBlocks = (userId) => {
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        // Button 1: Speed Coffee (Still uses backend matchmaking)
+        // Button 1: Speed Coffee
         { 
           type: "button", 
           text: { type: "plain_text", text: "☕ Speed Coffee" }, 
@@ -46,23 +44,21 @@ const getDashboardBlocks = (userId) => {
           action_id: "btn_speed_coffee" 
         },
 
-        // Button 2: Arcade (DIRECT LINK)
-        // 👇 HERE IS HOW WE ENSURE IT GOES TO GAMES
-        // We take your URL + user ID + '&mode=games'
+        // Button 2: Arcade (UPDATED ORDER: mode first, then user)
+        // Format: .../?mode=games&user=U12345
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
-          url: `${myAppUrl}?user=${userId}&mode=games`, 
+          url: `${myAppUrl}?mode=games&user=${userId}`, 
           action_id: "btn_arcade_link" 
         },
 
-        // Button 3: MeTime (DIRECT LINK)
-        // 👇 HERE IS HOW WE ENSURE IT GOES TO METIME
-        // We take your URL + user ID + '&mode=metime'
+        // Button 3: MeTime (UPDATED ORDER: mode first, then user)
+        // Format: .../?mode=metime&user=U12345
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
-          url: `${myAppUrl}?user=${userId}&mode=metime`,
+          url: `${myAppUrl}?mode=metime&user=${userId}`,
           action_id: "btn_metime_link"
         }
       ]
@@ -116,14 +112,12 @@ async function handleMatchmaking(body, client, collectionName, urlSuffix) {
     await queueRef.doc(partnerDocId).delete();
     await queueRef.doc(userId).delete(); 
 
-    const urlSuffix = ''; // Reset suffix for simple video calls
-    const roomUrl1 = createVideoRoom(userId) + urlSuffix;
-    const roomUrl2 = createVideoRoom(partnerId) + urlSuffix; 
+    const roomUrl1 = createVideoRoom(userId);
+    const roomUrl2 = createVideoRoom(partnerId); 
     
-    // Create unique room name
     const uniqueId = Math.random().toString(36).substring(2, 12);
     const roomName = `WeTime-${uniqueId}`;
-    const baseUrl = "https://trgrubman-debug.github.io/wetime-website/"; // UPDATED HERE TOO
+    const baseUrl = "https://trgrubman-debug.github.io/wetime-website/";
     
     const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}`;
     const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}`;
