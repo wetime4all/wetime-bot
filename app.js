@@ -16,20 +16,21 @@ const app = new App({
 });
 
 // --- HELPER: Video Link Generator ---
-// Used only for the Speed Coffee matchmaking logic
 function createVideoRoom(userId) {
   const uniqueId = Math.random().toString(36).substring(2, 12);
   const roomName = `WeTime-${uniqueId}`;
   
-  // !!! UPDATE THIS WITH YOUR GITHUB PAGES URL !!!
-  const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
+  // This helper is for the video calls (Speed Coffee)
+  // We use your real URL here too.
+  const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
   
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
 
-// --- DASHBOARD UI (UPDATED FOR DIRECT LINKS) ---
+// --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
-  // Define base URL for your website
+  // 👇 THIS IS THE CRITICAL PART
+  // We define your base URL here.
   const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
 
   return [
@@ -37,7 +38,7 @@ const getDashboardBlocks = (userId) => {
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        // Button 1: Speed Coffee (Still uses backend logic)
+        // Button 1: Speed Coffee (Still uses backend matchmaking)
         { 
           type: "button", 
           text: { type: "plain_text", text: "☕ Speed Coffee" }, 
@@ -45,17 +46,19 @@ const getDashboardBlocks = (userId) => {
           action_id: "btn_speed_coffee" 
         },
 
-        // Button 2: Arcade (DIRECT LINK -> Games Tab)
-        // We add '&mode=arcade' so the HTML knows to switch tabs
+        // Button 2: Arcade (DIRECT LINK)
+        // 👇 HERE IS HOW WE ENSURE IT GOES TO GAMES
+        // We take your URL + user ID + '&mode=games'
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
-          url: `${myAppUrl}?user=${userId}&mode=arcade`, 
+          url: `${myAppUrl}?user=${userId}&mode=games`, 
           action_id: "btn_arcade_link" 
         },
 
-        // Button 3: MeTime (DIRECT LINK -> MeTime Tab)
-        // We add '&mode=metime' so the HTML knows to switch tabs
+        // Button 3: MeTime (DIRECT LINK)
+        // 👇 HERE IS HOW WE ENSURE IT GOES TO METIME
+        // We take your URL + user ID + '&mode=metime'
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
@@ -78,19 +81,14 @@ app.event('app_home_opened', async ({ event, client }) => {
 
 app.command('/wetime', async ({ command, ack, respond }) => {
   await ack();
-  // Crucial: We use command.user_id so the website knows WHO clicked the link
   await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
 // --- ACTION 1: SPEED COFFEE ---
-// This is the only button that triggers backend code (matchmaking)
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
   await handleMatchmaking(body, client, 'match_queue', '');
 });
-
-// Note: 'btn_arcade' and 'btn_metime' handlers are REMOVED 
-// because the buttons now open the browser directly!
 
 // --- SHARED MATCHMAKING LOGIC ---
 async function handleMatchmaking(body, client, collectionName, urlSuffix) {
@@ -109,33 +107,29 @@ async function handleMatchmaking(body, client, collectionName, urlSuffix) {
   });
 
   if (!partnerId) {
-    // Add to queue
     await queueRef.doc(userId).set({
       userId: userId,
       joinedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     await client.chat.postMessage({ channel: userId, text: "You are in the queue! 🕒 Waiting for a partner..." });
   } else {
-    // Match found!
     await queueRef.doc(partnerDocId).delete();
     await queueRef.doc(userId).delete(); 
 
-    // Generate Base URL for User 1
+    const urlSuffix = ''; // Reset suffix for simple video calls
     const roomUrl1 = createVideoRoom(userId) + urlSuffix;
-    // Generate Base URL for User 2
     const roomUrl2 = createVideoRoom(partnerId) + urlSuffix; 
     
-    // In a real app, ensure room name is identical for both
+    // Create unique room name
     const uniqueId = Math.random().toString(36).substring(2, 12);
     const roomName = `WeTime-${uniqueId}`;
-    const baseUrl = "https://wetime4all.github.io/wetime-bot/"; 
+    const baseUrl = "https://trgrubman-debug.github.io/wetime-website/"; // UPDATED HERE TOO
     
-    const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}${urlSuffix}`;
-    const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}${urlSuffix}`;
+    const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}`;
+    const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}`;
 
     const matchText = `🎉 *It's a Match!*`;
 
-    // Notify User 1
     await client.chat.postMessage({ 
         channel: userId, 
         text: "Match found!",
@@ -145,7 +139,6 @@ async function handleMatchmaking(body, client, collectionName, urlSuffix) {
         ]
     });
     
-    // Notify User 2
     await client.chat.postMessage({ 
         channel: partnerId, 
         text: "Match found!",
