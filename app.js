@@ -16,6 +16,7 @@ const app = new App({
 });
 
 // --- HELPER: Video Link Generator ---
+// Used only for the Speed Coffee matchmaking logic
 function createVideoRoom(userId) {
   const uniqueId = Math.random().toString(36).substring(2, 12);
   const roomName = `WeTime-${uniqueId}`;
@@ -23,32 +24,48 @@ function createVideoRoom(userId) {
   // !!! UPDATE THIS WITH YOUR GITHUB PAGES URL !!!
   const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
   
-  // We return the base URL here. We append &user= later in logic.
-  // Actually, let's keep it simple and handle params in the actions.
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
 
-// --- DASHBOARD UI ---
-const getDashboardBlocks = (user) => {
+// --- DASHBOARD UI (UPDATED FOR DIRECT LINKS) ---
+const getDashboardBlocks = (userId) => {
+  // Define base URL for your website
+  const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
+
   return [
-    { type: "header", text: { type: "plain_text", text: `Welcome back, ${user}! 👋` } },
+    { type: "header", text: { type: "plain_text", text: `Welcome back! 👋` } },
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        { type: "button", text: { type: "plain_text", text: "☕ Speed Coffee" }, style: "primary", action_id: "btn_speed_coffee" },
-        { type: "button", text: { type: "plain_text", text: "🎮 WeTime Arcade" }, action_id: "btn_arcade" }, // RENAMED
-        { type: "button", text: { type: "plain_text", text: "🧘 MeTime" }, action_id: "btn_metime" }
+        // Button 1: Speed Coffee (Still uses backend logic)
+        { 
+          type: "button", 
+          text: { type: "plain_text", text: "☕ Speed Coffee" }, 
+          style: "primary", 
+          action_id: "btn_speed_coffee" 
+        },
+
+        // Button 2: Arcade (DIRECT LINK -> Games Tab)
+        // We add '&mode=arcade' so the HTML knows to switch tabs
+        { 
+          type: "button", 
+          text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
+          url: `${myAppUrl}?user=${userId}&mode=arcade`, 
+          action_id: "btn_arcade_link" 
+        },
+
+        // Button 3: MeTime (DIRECT LINK -> MeTime Tab)
+        // We add '&mode=metime' so the HTML knows to switch tabs
+        { 
+          type: "button", 
+          text: { type: "plain_text", text: "🧘 MeTime" }, 
+          url: `${myAppUrl}?user=${userId}&mode=metime`,
+          action_id: "btn_metime_link"
+        }
       ]
     }
   ];
 };
-
-// 2. Add the Generic "Arcade" Handler (Replaces btn_connect4)
-app.action('btn_arcade', async ({ body, ack, client }) => {
-  await ack();
-  // Send them to the 'lobby' mode. The frontend handles the rest.
-  await handleMatchmaking(body, client, 'game_queue', '&mode=lobby');
-});
 
 // --- EVENTS ---
 
@@ -61,20 +78,19 @@ app.event('app_home_opened', async ({ event, client }) => {
 
 app.command('/wetime', async ({ command, ack, respond }) => {
   await ack();
-  await respond({ blocks: getDashboardBlocks(command.user_name) });
+  // Crucial: We use command.user_id so the website knows WHO clicked the link
+  await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
 // --- ACTION 1: SPEED COFFEE ---
+// This is the only button that triggers backend code (matchmaking)
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
   await handleMatchmaking(body, client, 'match_queue', '');
 });
 
-// --- ACTION 2: CONNECT 4 (NEW) ---
-app.action('btn_connect4', async ({ body, ack, client }) => {
-  await ack();
-  await handleMatchmaking(body, client, 'game_queue', '&mode=connect4');
-});
+// Note: 'btn_arcade' and 'btn_metime' handlers are REMOVED 
+// because the buttons now open the browser directly!
 
 // --- SHARED MATCHMAKING LOGIC ---
 async function handleMatchmaking(body, client, collectionName, urlSuffix) {
@@ -107,12 +123,12 @@ async function handleMatchmaking(body, client, collectionName, urlSuffix) {
     // Generate Base URL for User 1
     const roomUrl1 = createVideoRoom(userId) + urlSuffix;
     // Generate Base URL for User 2
-    const roomUrl2 = createVideoRoom(partnerId) + urlSuffix; // Note: In a real app, room name must be same.
+    const roomUrl2 = createVideoRoom(partnerId) + urlSuffix; 
     
-    // FIX: Generate ONE room name for both
+    // In a real app, ensure room name is identical for both
     const uniqueId = Math.random().toString(36).substring(2, 12);
     const roomName = `WeTime-${uniqueId}`;
-    const baseUrl = "https://wetime4all.github.io/wetime-bot/"; // UPDATE THIS
+    const baseUrl = "https://wetime4all.github.io/wetime-bot/"; 
     
     const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}${urlSuffix}`;
     const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}${urlSuffix}`;
@@ -140,11 +156,6 @@ async function handleMatchmaking(body, client, collectionName, urlSuffix) {
     });
   }
 }
-
-app.action('btn_metime', async ({ body, ack, client }) => {
-  await ack();
-  await client.chat.postMessage({ channel: body.user.id, text: "MeTime Activated 🧘. Matching snoozed." });
-});
 
 // --- SERVER ---
 const receiver = http.createServer((req, res) => {
