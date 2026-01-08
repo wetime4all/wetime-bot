@@ -30,7 +30,7 @@ function createVideoRoom(userId) {
 // --- DASHBOARD UI (UPDATED FOR DIRECT LINKS) ---
 const getDashboardBlocks = (userId) => {
   // Define base URL for your website
-  const myAppUrl = "https://wetime4all.github.io/wetime-bot/"; 
+  const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
 
   return [
     { type: "header", text: { type: "plain_text", text: `Welcome back! 👋` } },
