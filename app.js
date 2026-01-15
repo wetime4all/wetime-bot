@@ -49,7 +49,7 @@ const getDashboardBlocks = (userId) => {
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
-          url: `${myAppUrl}?mode=games&user=${userId}`, 
+          url: `${myAppUrl}games`, 
           action_id: "btn_arcade_link" 
         },
 
@@ -58,7 +58,7 @@ const getDashboardBlocks = (userId) => {
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
-          url: `${myAppUrl}?mode=metime&user=${userId}`,
+          url: `${myAppUrl}metime`,
           action_id: "btn_metime_link"
         }
       ]
