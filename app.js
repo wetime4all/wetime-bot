@@ -32,7 +32,7 @@ const getDashboardBlocks = (userId) => {
   const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
 
   return [
-    { type: "header", text: { type: "plain_text", text: `Welcome back! 👋` } },
+    { type: "header", text: { type: "plain_text", text: `Welcomee back! 👋` } },
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
