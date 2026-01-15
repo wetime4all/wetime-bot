@@ -21,7 +21,7 @@ function createVideoRoom(userId) {
   const roomName = `WeTime-${uniqueId}`;
   
   // Your GitHub URL
-  const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
+  const myAppUrl = "https://wetime-portal.lovable.app"; 
   
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
