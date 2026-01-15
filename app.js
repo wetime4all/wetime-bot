@@ -29,7 +29,7 @@ function createVideoRoom(userId) {
 // --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
   // Your GitHub URL
-  const myAppUrl = "https://trgrubman-debug.github.io/wetime-website/"; 
+  const myAppUrl = "https://wetime-portal.lovable.app"; 
 
   return [
     { type: "header", text: { type: "plain_text", text: `Welcomee back! 👋` } },
