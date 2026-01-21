@@ -21,7 +21,7 @@ function createVideoRoom(userId) {
   const roomName = `WeTime-${uniqueId}`;
   
   // Your GitHub URL
-  const myAppUrl = "https://wetime.lovable.app"; 
+  const myAppUrl = "https://wetime.lovable.app/"; 
   
   return `${myAppUrl}?room=${roomName}&user=${userId}`;
 }
@@ -29,7 +29,7 @@ function createVideoRoom(userId) {
 // --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
   // Your GitHub URL
-  const myAppUrl = "https://wetime.lovable.app"; 
+  const myAppUrl = "https://wetime.lovable.app/"; 
 
   return [
     { type: "header", text: { type: "plain_text", text: `Welcomee back! 👋` } },
