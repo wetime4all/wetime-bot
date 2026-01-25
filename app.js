@@ -15,28 +15,17 @@ const app = new App({
   appToken: process.env.SLACK_APP_TOKEN
 });
 
-// --- HELPER: Video Link Generator ---
-function createVideoRoom(userId) {
-  const uniqueId = Math.random().toString(36).substring(2, 12);
-  const roomName = `WeTime-${uniqueId}`;
-  
-  // Your GitHub URL
-  const myAppUrl = "https://wetime.lovable.app/"; 
-  
-  return `${myAppUrl}?room=${roomName}&user=${userId}`;
-}
-
 // --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
-  // Your GitHub URL
-  const myAppUrl = "https://wetime.lovable.app/"; 
+  // Your Lovable App URL
+  const myAppUrl = "https://wetime.lovable.app"; 
 
   return [
-    { type: "header", text: { type: "plain_text", text: `Welcomee back! 👋` } },
+    { type: "header", text: { type: "plain_text", text: `Welcome back! 👋` } },
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        // Button 1: Speed Coffee
+        // Button 1: Speed Coffee (Smart Matchmaking)
         { 
           type: "button", 
           text: { type: "plain_text", text: "☕ Speed Coffee" }, 
@@ -44,21 +33,19 @@ const getDashboardBlocks = (userId) => {
           action_id: "btn_speed_coffee" 
         },
 
-        // Button 2: Arcade (UPDATED ORDER: mode first, then user)
-        // Format: .../?mode=games&user=U12345
+        // Button 2: Arcade (Direct Link)
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
-          url: `${myAppUrl}games`, 
+          url: `${myAppUrl}/games`, 
           action_id: "btn_arcade_link" 
         },
 
-        // Button 3: MeTime (UPDATED ORDER: mode first, then user)
-        // Format: .../?mode=metime&user=U12345
+        // Button 3: MeTime (Direct Link)
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
-          url: `${myAppUrl}metime`,
+          url: `${myAppUrl}/metime`,
           action_id: "btn_metime_link"
         }
       ]
@@ -80,67 +67,134 @@ app.command('/wetime', async ({ command, ack, respond }) => {
   await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
-// --- ACTION 1: SPEED COFFEE ---
+// --- ACTION: SPEED COFFEE ---
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
-  await handleMatchmaking(body, client, 'match_queue', '');
+  // Pass the team ID to ensure we use the correct company queue
+  await handleMatchmaking(body, client, 'match_queue');
 });
 
-// --- SHARED MATCHMAKING LOGIC ---
-async function handleMatchmaking(body, client, collectionName, urlSuffix) {
+// --- SHARED MATCHMAKING LOGIC (Secure & Self-Cleaning) ---
+async function handleMatchmaking(body, client, baseCollectionName) {
   const userId = body.user.id;
+  const teamId = body.team.id; // Grab the Company ID
+
+  // 1. CREATE SECURE QUEUE NAME
+  // This ensures Company A employees never match with Company B employees
+  const collectionName = `${baseCollectionName}_${teamId}`;
   const queueRef = db.collection(collectionName);
 
-  const snapshot = await queueRef.orderBy('joinedAt', 'asc').limit(1).get();
+  // 2. Calculate "Stale Time" (UPDATED: 30 minutes ago)
+  const staleTimeThreshold = new Date(Date.now() - 30 * 60 * 1000);
+
+  // 3. Check the waiting list (Oldest first)
+  const snapshot = await queueRef.orderBy('joinedAt', 'asc').get();
+  
   let partnerId = null;
   let partnerDocId = null;
 
-  snapshot.forEach(doc => {
-    if (doc.data().userId !== userId) {
-      partnerId = doc.data().userId;
-      partnerDocId = doc.id;
+  // 4. Loop through to find a VALID partner
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    
+    // Ignore ourselves
+    if (data.userId === userId) continue;
+
+    // Convert Firestore timestamp to JS Date
+    const joinedAt = data.joinedAt.toDate();
+
+    // CHECK: Is this user "stale" (older than 30 mins)?
+    if (joinedAt < staleTimeThreshold) {
+        console.log(`User ${data.userId} is stale. Removing from queue.`);
+        await queueRef.doc(doc.id).delete();
+        continue; // Skip to next person
     }
-  });
+
+    // Found a valid match!
+    partnerId = data.userId;
+    partnerDocId = doc.id;
+    break; 
+  }
 
   if (!partnerId) {
+    // --- NO MATCH FOUND: ADD TO QUEUE & SUGGEST SOLO GAME ---
     await queueRef.doc(userId).set({
       userId: userId,
       joinedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    await client.chat.postMessage({ channel: userId, text: "You are in the queue! 🕒 Waiting for a partner..." });
+    
+    // UPDATED: "Wait" message now includes a game button
+    await client.chat.postMessage({ 
+        channel: userId, 
+        text: "You are in the queue! 🕒 Waiting for a partner...",
+        blocks: [
+            { type: "section", text: { type: "mrkdwn", text: "🕒 *You are in the queue!*" } },
+            { type: "section", text: { type: "mrkdwn", text: "We're looking for a partner. (Valid for 30 mins)" } },
+            { type: "divider" },
+            { 
+                type: "section", 
+                text: { type: "mrkdwn", text: "🎮 *While you wait...*\nWhy not play a quick solo game to warm up?" },
+                accessory: {
+                    type: "button",
+                    text: { type: "plain_text", text: "Play Solo Game 🕹️" },
+                    url: "https://wetime.lovable.app/games",
+                    style: "primary"
+                }
+            }
+        ]
+    });
+
   } else {
+    // --- MATCH FOUND! ---
+    
+    // 1. Remove BOTH users from queue immediately to prevent double-booking
     await queueRef.doc(partnerDocId).delete();
     await queueRef.doc(userId).delete(); 
 
-    const roomUrl1 = createVideoRoom(userId);
-    const roomUrl2 = createVideoRoom(partnerId); 
-    
-    const uniqueId = Math.random().toString(36).substring(2, 12);
-    const roomName = `WeTime-${uniqueId}`;
-    const baseUrl = "https://trgrubman-debug.github.io/wetime-website/";
-    
-    const finalUrl1 = `${baseUrl}?room=${roomName}&user=${userId}`;
-    const finalUrl2 = `${baseUrl}?room=${roomName}&user=${partnerId}`;
+    try {
+        // 2. Open a "Group DM" with both users
+        const result = await client.conversations.open({
+            users: `${userId},${partnerId}`
+        });
 
-    const matchText = `🎉 *It's a Match!*`;
+        if (result.ok) {
+            const groupChannelId = result.channel.id;
+            
+            // 3. Send the Match Message
+            await client.chat.postMessage({
+                channel: groupChannelId,
+                text: "🎉 *It's a Match!*",
+                blocks: [
+                    { type: "header", text: { type: "plain_text", text: "🎉 It's a Match!" } },
+                    { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
+                    { type: "divider" },
 
-    await client.chat.postMessage({ 
-        channel: userId, 
-        text: "Match found!",
-        blocks: [
-            { type: "section", text: { type: "mrkdwn", text: matchText } },
-            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Join Call 📹" }, url: finalUrl1, style: "primary" }] }
-        ]
-    });
-    
-    await client.chat.postMessage({ 
-        channel: partnerId, 
-        text: "Match found!",
-        blocks: [
-            { type: "section", text: { type: "mrkdwn", text: matchText } },
-            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Join Call 📹" }, url: finalUrl2, style: "primary" }] }
-        ]
-    });
+                    // --- STEP 1: HUDDLE ---
+                    { 
+                        type: "section", 
+                        text: { type: "mrkdwn", text: "🗣 *Step 1: Start Talking*\nClick the 🎧 *Huddle toggle* (bottom left) to start the call." } 
+                    },
+
+                    // --- STEP 2: GAME LINK ---
+                    { 
+                        type: "section", 
+                        text: { type: "mrkdwn", text: "🎮 *Step 2: Play (Optional)*\nWant to break the ice? Jump into the arcade!" },
+                        accessory: {
+                            type: "button",
+                            text: { type: "plain_text", text: "Open WeTime Arcade 🕹️" },
+                            url: "https://wetime.lovable.app/games",
+                            style: "primary"
+                        }
+                    }
+                ]
+            });
+        }
+    } catch (error) {
+        console.error("Error creating match:", error);
+        // Fallback: Message individually if Group DM fails
+        await client.chat.postMessage({ channel: userId, text: `You matched with <@${partnerId}>! Go say hi!` });
+        await client.chat.postMessage({ channel: partnerId, text: `You matched with <@${userId}>! Go say hi!` });
+    }
   }
 }
 
