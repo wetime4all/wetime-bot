@@ -17,7 +17,6 @@ const app = new App({
 
 // --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
-  // Your Lovable App URL
   const myAppUrl = "https://wetime.lovable.app"; 
 
   return [
@@ -33,7 +32,7 @@ const getDashboardBlocks = (userId) => {
           action_id: "btn_speed_coffee" 
         },
 
-        // Button 2: Arcade (Direct Link)
+        // Button 2: Arcade (Link + Ack)
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
@@ -41,7 +40,7 @@ const getDashboardBlocks = (userId) => {
           action_id: "btn_arcade_link" 
         },
 
-        // Button 3: MeTime (Direct Link)
+        // Button 3: MeTime (Link + Ack)
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
@@ -67,24 +66,35 @@ app.command('/wetime', async ({ command, ack, respond }) => {
   await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
-// --- ACTION: SPEED COFFEE ---
+// --- BUTTON LISTENERS (The "Nod" Fix) ---
+// These handlers catch the click and say "OK" to Slack to prevent the Red Triangle ⚠️
+
+// 1. Arcade Button
+app.action('btn_arcade_link', async ({ ack }) => { await ack(); });
+
+// 2. MeTime Button
+app.action('btn_metime_link', async ({ ack }) => { await ack(); });
+
+// 3. Solo Game Button (appears in the waiting message)
+app.action('btn_solo_game', async ({ ack }) => { await ack(); });
+
+// 4. Speed Coffee (Triggers the actual logic)
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
-  // Pass the team ID to ensure we use the correct company queue
   await handleMatchmaking(body, client, 'match_queue');
 });
 
-// --- SHARED MATCHMAKING LOGIC (Secure & Self-Cleaning) ---
+
+// --- SHARED MATCHMAKING LOGIC ---
 async function handleMatchmaking(body, client, baseCollectionName) {
   const userId = body.user.id;
   const teamId = body.team.id; // Grab the Company ID
 
   // 1. CREATE SECURE QUEUE NAME
-  // This ensures Company A employees never match with Company B employees
   const collectionName = `${baseCollectionName}_${teamId}`;
   const queueRef = db.collection(collectionName);
 
-  // 2. Calculate "Stale Time" (UPDATED: 30 minutes ago)
+  // 2. Calculate "Stale Time" (30 minutes ago)
   const staleTimeThreshold = new Date(Date.now() - 30 * 60 * 1000);
 
   // 3. Check the waiting list (Oldest first)
@@ -117,13 +127,13 @@ async function handleMatchmaking(body, client, baseCollectionName) {
   }
 
   if (!partnerId) {
-    // --- NO MATCH FOUND: ADD TO QUEUE & SUGGEST SOLO GAME ---
+    // --- NO MATCH FOUND: ADD TO QUEUE ---
     await queueRef.doc(userId).set({
       userId: userId,
       joinedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    // UPDATED: "Wait" message now includes a game button
+    // Send "Wait" message with Solo Game button
     await client.chat.postMessage({ 
         channel: userId, 
         text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -138,7 +148,8 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                     type: "button",
                     text: { type: "plain_text", text: "Play Solo Game 🕹️" },
                     url: "https://wetime.lovable.app/games",
-                    style: "primary"
+                    style: "primary",
+                    action_id: "btn_solo_game" // Matches the listener above
                 }
             }
         ]
@@ -147,7 +158,7 @@ async function handleMatchmaking(body, client, baseCollectionName) {
   } else {
     // --- MATCH FOUND! ---
     
-    // 1. Remove BOTH users from queue immediately to prevent double-booking
+    // 1. Remove BOTH users from queue immediately
     await queueRef.doc(partnerDocId).delete();
     await queueRef.doc(userId).delete(); 
 
@@ -183,7 +194,8 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                             type: "button",
                             text: { type: "plain_text", text: "Open WeTime Arcade 🕹️" },
                             url: "https://wetime.lovable.app/games",
-                            style: "primary"
+                            style: "primary",
+                            action_id: "btn_arcade_link" // Re-using the handler we made above
                         }
                     }
                 ]
