@@ -24,23 +24,21 @@ const getDashboardBlocks = (userId) => {
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        // Button 1: Speed Coffee (Smart Matchmaking)
+        // Button 1: Speed Coffee
         { 
           type: "button", 
           text: { type: "plain_text", text: "☕ Speed Coffee" }, 
           style: "primary", 
           action_id: "btn_speed_coffee" 
         },
-
-        // Button 2: Arcade (Link + Ack)
+        // Button 2: Arcade
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
           url: `${myAppUrl}/games`, 
           action_id: "btn_arcade_link" 
         },
-
-        // Button 3: MeTime (Link + Ack)
+        // Button 3: MeTime
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
@@ -66,19 +64,12 @@ app.command('/wetime', async ({ command, ack, respond }) => {
   await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
-// --- BUTTON LISTENERS (The "Nod" Fix) ---
-// These handlers catch the click and say "OK" to Slack to prevent the Red Triangle ⚠️
-
-// 1. Arcade Button
+// --- BUTTON LISTENERS (The "Nod" Fix 🫡) ---
 app.action('btn_arcade_link', async ({ ack }) => { await ack(); });
-
-// 2. MeTime Button
 app.action('btn_metime_link', async ({ ack }) => { await ack(); });
-
-// 3. Solo Game Button (appears in the waiting message)
 app.action('btn_solo_game', async ({ ack }) => { await ack(); });
+app.action('btn_people_directory', async ({ ack }) => { await ack(); }); 
 
-// 4. Speed Coffee (Triggers the actual logic)
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
   await handleMatchmaking(body, client, 'match_queue');
@@ -88,7 +79,7 @@ app.action('btn_speed_coffee', async ({ body, ack, client }) => {
 // --- SHARED MATCHMAKING LOGIC ---
 async function handleMatchmaking(body, client, baseCollectionName) {
   const userId = body.user.id;
-  const teamId = body.team.id; // Grab the Company ID
+  const teamId = body.team.id; 
 
   // 1. CREATE SECURE QUEUE NAME
   const collectionName = `${baseCollectionName}_${teamId}`;
@@ -97,7 +88,7 @@ async function handleMatchmaking(body, client, baseCollectionName) {
   // 2. Calculate "Stale Time" (30 minutes ago)
   const staleTimeThreshold = new Date(Date.now() - 30 * 60 * 1000);
 
-  // 3. Check the waiting list (Oldest first)
+  // 3. Check the waiting list
   const snapshot = await queueRef.orderBy('joinedAt', 'asc').get();
   
   let partnerId = null;
@@ -106,21 +97,15 @@ async function handleMatchmaking(body, client, baseCollectionName) {
   // 4. Loop through to find a VALID partner
   for (const doc of snapshot.docs) {
     const data = doc.data();
-    
-    // Ignore ourselves
     if (data.userId === userId) continue;
 
-    // Convert Firestore timestamp to JS Date
     const joinedAt = data.joinedAt.toDate();
-
-    // CHECK: Is this user "stale" (older than 30 mins)?
     if (joinedAt < staleTimeThreshold) {
         console.log(`User ${data.userId} is stale. Removing from queue.`);
         await queueRef.doc(doc.id).delete();
-        continue; // Skip to next person
+        continue; 
     }
 
-    // Found a valid match!
     partnerId = data.userId;
     partnerDocId = doc.id;
     break; 
@@ -133,7 +118,7 @@ async function handleMatchmaking(body, client, baseCollectionName) {
       joinedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    // Send "Wait" message with Solo Game button
+    // Send "Wait" message with Solo Game
     await client.chat.postMessage({ 
         channel: userId, 
         text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -149,7 +134,7 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                     text: { type: "plain_text", text: "Play Solo Game 🕹️" },
                     url: "https://wetime.lovable.app/games",
                     style: "primary",
-                    action_id: "btn_solo_game" // Matches the listener above
+                    action_id: "btn_solo_game"
                 }
             }
         ]
@@ -157,13 +142,10 @@ async function handleMatchmaking(body, client, baseCollectionName) {
 
   } else {
     // --- MATCH FOUND! ---
-    
-    // 1. Remove BOTH users from queue immediately
     await queueRef.doc(partnerDocId).delete();
     await queueRef.doc(userId).delete(); 
 
     try {
-        // 2. Open a "Group DM" with both users
         const result = await client.conversations.open({
             users: `${userId},${partnerId}`
         });
@@ -180,30 +162,47 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                     { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
                     { type: "divider" },
 
-                    // --- STEP 1: HUDDLE ---
+                    // --- STEP 1: CHECK-IN ---
                     { 
                         type: "section", 
-                        text: { type: "mrkdwn", text: "🗣 *Step 1: Start Talking*\nClick the 🎧 *Huddle toggle* (bottom left) to start the call." } 
+                        text: { type: "mrkdwn", text: "💬 *Step 1: Say Hi*\nSend a message to confirm you're both still free for a break." } 
                     },
 
-                    // --- STEP 2: GAME LINK ---
+                    // --- STEP 2: HUDDLE ---
                     { 
                         type: "section", 
-                        text: { type: "mrkdwn", text: "🎮 *Step 2: Play (Optional)*\nWant to break the ice? Jump into the arcade!" },
-                        accessory: {
-                            type: "button",
-                            text: { type: "plain_text", text: "Open WeTime Arcade 🕹️" },
-                            url: "https://wetime.lovable.app/games",
-                            style: "primary",
-                            action_id: "btn_arcade_link" // Re-using the handler we made above
-                        }
+                        text: { type: "mrkdwn", text: "🎧 *Step 2: Start Talking*\nOnce you're ready, click the *headphone icon* (usually top right) to start the Huddle." } 
+                    },
+
+                    // --- STEP 3: ICEBREAKERS (Action Bar) ---
+                    { 
+                        type: "section", 
+                        // UPDATED TEXT: Simplified phrasing as requested
+                        text: { type: "mrkdwn", text: "❄️ *Step 3: Break the Ice (Optional)*\nJump into the arcade or learn more about each other in the directory!" } 
+                    },
+                    {
+                        type: "actions",
+                        elements: [
+                            {
+                                type: "button",
+                                text: { type: "plain_text", text: "🎮 Open Arcade" },
+                                url: "https://wetime.lovable.app/games",
+                                style: "primary",
+                                action_id: "btn_arcade_link"
+                            },
+                            {
+                                type: "button",
+                                text: { type: "plain_text", text: "👤 View People Directory" },
+                                url: "https://wetime.lovable.app/directory", 
+                                action_id: "btn_people_directory"
+                            }
+                        ]
                     }
                 ]
             });
         }
     } catch (error) {
         console.error("Error creating match:", error);
-        // Fallback: Message individually if Group DM fails
         await client.chat.postMessage({ channel: userId, text: `You matched with <@${partnerId}>! Go say hi!` });
         await client.chat.postMessage({ channel: partnerId, text: `You matched with <@${userId}>! Go say hi!` });
     }
