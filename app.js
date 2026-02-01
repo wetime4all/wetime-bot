@@ -2,7 +2,7 @@ const { App } = require('@slack/bolt');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
-// --- 🔍 DIAGNOSTICS CHECK (Keeps checking logs for safety) ---
+// --- 🔍 STARTUP DIAGNOSTICS (Check Logs if App Crashes) ---
 console.log("------------------------------------------------");
 console.log("🔍 STARTUP DIAGNOSTICS:");
 console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
@@ -19,35 +19,53 @@ const db = admin.firestore();
 // 👇 THE FIX: Tells Firestore to ignore "undefined" fields instead of crashing
 db.settings({ ignoreUndefinedProperties: true }); 
 
-// --- OAUTH INSTALLATION STORE ---
+// --- OAUTH INSTALLATION STORE (DEBUG VERSION) ---
 const installationStore = {
   storeInstallation: async (installation) => {
-    // 1. Determine the ID (Team ID or Enterprise ID)
-    if (installation.isEnterpriseInstall && installation.enterprise !== undefined) {
-      await db.collection('installations').doc(installation.enterprise.id).set(installation);
-    } else if (installation.team !== undefined) {
-      await db.collection('installations').doc(installation.team.id).set(installation);
-    } else {
-      throw new Error('Failed saving installation data to installationStore');
+    try {
+      console.log("📝 STARTING SAVE: Trying to save token to database...");
+      
+      // 1. Determine the ID (Team ID or Enterprise ID)
+      if (installation.isEnterpriseInstall && installation.enterprise !== undefined) {
+        await db.collection('installations').doc(installation.enterprise.id).set(installation);
+        console.log("✅ SUCCESS: Saved Enterprise Token!");
+      } else if (installation.team !== undefined) {
+        await db.collection('installations').doc(installation.team.id).set(installation);
+        console.log("✅ SUCCESS: Saved Team Token for " + installation.team.id);
+      } else {
+        throw new Error('❌ DATA ERROR: Installation data missing team/enterprise ID');
+      }
+    } catch (error) {
+      console.error("🔥 DATABASE ERROR:", error); // <--- THIS WILL SHOW THE REAL BUG IN LOGS
+      throw new Error("Failed to save installation to database");
     }
   },
   fetchInstallation: async (installQuery) => {
-    // 2. Fetch the token from Firestore
-    if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
-      const doc = await db.collection('installations').doc(installQuery.enterpriseId).get();
-      return doc.data();
+    try {
+      // 2. Fetch the token from Firestore
+      if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
+        const doc = await db.collection('installations').doc(installQuery.enterpriseId).get();
+        return doc.data();
+      }
+      if (installQuery.teamId !== undefined) {
+        const doc = await db.collection('installations').doc(installQuery.teamId).get();
+        return doc.data();
+      }
+      throw new Error('Failed fetching installation');
+    } catch (error) {
+      console.error("🔥 FETCH ERROR:", error);
+      throw new Error("Failed to fetch installation");
     }
-    if (installQuery.teamId !== undefined) {
-      const doc = await db.collection('installations').doc(installQuery.teamId).get();
-      return doc.data();
-    }
-    throw new Error('Failed fetching installation');
   },
   deleteInstallation: async (installQuery) => {
-    if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
-      await db.collection('installations').doc(installQuery.enterpriseId).delete();
-    } else if (installQuery.teamId !== undefined) {
-      await db.collection('installations').doc(installQuery.teamId).delete();
+    try {
+      if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
+        await db.collection('installations').doc(installQuery.enterpriseId).delete();
+      } else if (installQuery.teamId !== undefined) {
+        await db.collection('installations').doc(installQuery.teamId).delete();
+      }
+    } catch (error) {
+      console.error("🔥 DELETE ERROR:", error);
     }
   }
 };
