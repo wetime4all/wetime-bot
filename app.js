@@ -2,28 +2,34 @@ const { App } = require('@slack/bolt');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
+// --- 🔍 DIAGNOSTICS CHECK (Check Logs if App Crashes) ---
+console.log("------------------------------------------------");
+console.log("🔍 STARTUP DIAGNOSTICS:");
+console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
+console.log(`2. SLACK_CLIENT_SECRET: ${process.env.SLACK_CLIENT_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
+console.log(`3. SLACK_SIGNING_SECRET:${process.env.SLACK_SIGNING_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
+console.log(`4. SLACK_STATE_SECRET:  ${process.env.SLACK_STATE_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
+console.log("------------------------------------------------");
+
 // --- CONFIG ---
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 // --- OAUTH INSTALLATION STORE ---
-// This handles saving/retrieving tokens for different companies
 const installationStore = {
   storeInstallation: async (installation) => {
     // 1. Determine the ID (Team ID or Enterprise ID)
     if (installation.isEnterpriseInstall && installation.enterprise !== undefined) {
-      // Support for Enterprise Grid
       await db.collection('installations').doc(installation.enterprise.id).set(installation);
     } else if (installation.team !== undefined) {
-      // Standard Workspace
       await db.collection('installations').doc(installation.team.id).set(installation);
     } else {
       throw new Error('Failed saving installation data to installationStore');
     }
   },
   fetchInstallation: async (installQuery) => {
-    // 2. Fetch the token from Firestore when an event happens
+    // 2. Fetch the token from Firestore
     if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
       const doc = await db.collection('installations').doc(installQuery.enterpriseId).get();
       return doc.data();
@@ -35,7 +41,6 @@ const installationStore = {
     throw new Error('Failed fetching installation');
   },
   deleteInstallation: async (installQuery) => {
-    // 3. Handle uninstalls (Optional but recommended)
     if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
       await db.collection('installations').doc(installQuery.enterpriseId).delete();
     } else if (installQuery.teamId !== undefined) {
@@ -50,9 +55,9 @@ const app = new App({
   clientId: process.env.SLACK_CLIENT_ID,
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   stateSecret: process.env.SLACK_STATE_SECRET,
-  scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], // The permissions we need
+  scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
   installationStore: installationStore,
-  socketMode: false // <--- CRITICAL: Must be false for App Directory
+  socketMode: false // Must be FALSE for Public Distribution
 });
 
 // --- DASHBOARD UI ---
@@ -93,10 +98,14 @@ const getDashboardBlocks = (userId) => {
 // --- EVENTS ---
 
 app.event('app_home_opened', async ({ event, client }) => {
-  await client.views.publish({
-    user_id: event.user,
-    view: { type: 'home', blocks: getDashboardBlocks(event.user) }
-  });
+  try {
+      await client.views.publish({
+        user_id: event.user,
+        view: { type: 'home', blocks: getDashboardBlocks(event.user) }
+      });
+  } catch (error) {
+      console.error("Error publishing home view:", error);
+  }
 });
 
 app.command('/wetime', async ({ command, ack, respond }) => {
@@ -104,7 +113,7 @@ app.command('/wetime', async ({ command, ack, respond }) => {
   await respond({ blocks: getDashboardBlocks(command.user_id) });
 });
 
-// --- BUTTON LISTENERS (The "Nod" Fix 🫡) ---
+// --- BUTTON LISTENERS ---
 app.action('btn_arcade_link', async ({ ack }) => { await ack(); });
 app.action('btn_metime_link', async ({ ack }) => { await ack(); });
 app.action('btn_solo_game', async ({ ack }) => { await ack(); });
@@ -158,7 +167,7 @@ async function handleMatchmaking(body, client, baseCollectionName) {
       joinedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    // Send "Wait" message with Solo Game
+    // Send "Wait" message
     await client.chat.postMessage({ 
         channel: userId, 
         text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -201,20 +210,14 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                     { type: "header", text: { type: "plain_text", text: "🎉 It's a Match!" } },
                     { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
                     { type: "divider" },
-
-                    // --- STEP 1: CHECK-IN ---
                     { 
                         type: "section", 
                         text: { type: "mrkdwn", text: "💬 *Step 1: Say Hi*\nSend a message to confirm you're both still free for a break." } 
                     },
-
-                    // --- STEP 2: HUDDLE ---
                     { 
                         type: "section", 
                         text: { type: "mrkdwn", text: "🎧 *Step 2: Start Talking*\nOnce you're ready, click the *headphone icon* (usually top right) to start the Huddle." } 
                     },
-
-                    // --- STEP 3: ICEBREAKERS (Action Bar) ---
                     { 
                         type: "section", 
                         text: { type: "mrkdwn", text: "❄️ *Step 3: Break the Ice (Optional)*\nJump into the arcade or learn more about each other in the directory!" } 
@@ -242,15 +245,11 @@ async function handleMatchmaking(body, client, baseCollectionName) {
         }
     } catch (error) {
         console.error("Error creating match:", error);
-        await client.chat.postMessage({ channel: userId, text: `You matched with <@${partnerId}>! Go say hi!` });
-        await client.chat.postMessage({ channel: partnerId, text: `You matched with <@${userId}>! Go say hi!` });
     }
   }
 }
 
 // --- SERVER ---
-// Since socketMode is FALSE, app.start() now launches the HTTP server for us.
-// We pass the PORT variable so Render can hook into it.
 (async () => {
   await app.start(process.env.PORT || 3000);
   console.log('⚡️ WeTime Bot is running!');
