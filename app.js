@@ -1,6 +1,5 @@
 const { App } = require('@slack/bolt');
 const admin = require('firebase-admin');
-const http = require('http');
 require('dotenv').config();
 
 // --- CONFIG ---
@@ -8,11 +7,52 @@ const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+// --- OAUTH INSTALLATION STORE ---
+// This handles saving/retrieving tokens for different companies
+const installationStore = {
+  storeInstallation: async (installation) => {
+    // 1. Determine the ID (Team ID or Enterprise ID)
+    if (installation.isEnterpriseInstall && installation.enterprise !== undefined) {
+      // Support for Enterprise Grid
+      await db.collection('installations').doc(installation.enterprise.id).set(installation);
+    } else if (installation.team !== undefined) {
+      // Standard Workspace
+      await db.collection('installations').doc(installation.team.id).set(installation);
+    } else {
+      throw new Error('Failed saving installation data to installationStore');
+    }
+  },
+  fetchInstallation: async (installQuery) => {
+    // 2. Fetch the token from Firestore when an event happens
+    if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
+      const doc = await db.collection('installations').doc(installQuery.enterpriseId).get();
+      return doc.data();
+    }
+    if (installQuery.teamId !== undefined) {
+      const doc = await db.collection('installations').doc(installQuery.teamId).get();
+      return doc.data();
+    }
+    throw new Error('Failed fetching installation');
+  },
+  deleteInstallation: async (installQuery) => {
+    // 3. Handle uninstalls (Optional but recommended)
+    if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
+      await db.collection('installations').doc(installQuery.enterpriseId).delete();
+    } else if (installQuery.teamId !== undefined) {
+      await db.collection('installations').doc(installQuery.teamId).delete();
+    }
+  }
+};
+
+// --- APP INITIALIZATION ---
 const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: true,
-  appToken: process.env.SLACK_APP_TOKEN
+  clientId: process.env.SLACK_CLIENT_ID,
+  clientSecret: process.env.SLACK_CLIENT_SECRET,
+  stateSecret: process.env.SLACK_STATE_SECRET,
+  scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], // The permissions we need
+  installationStore: installationStore,
+  socketMode: false // <--- CRITICAL: Must be false for App Directory
 });
 
 // --- DASHBOARD UI ---
@@ -177,7 +217,6 @@ async function handleMatchmaking(body, client, baseCollectionName) {
                     // --- STEP 3: ICEBREAKERS (Action Bar) ---
                     { 
                         type: "section", 
-                        // UPDATED TEXT: Simplified phrasing as requested
                         text: { type: "mrkdwn", text: "❄️ *Step 3: Break the Ice (Optional)*\nJump into the arcade or learn more about each other in the directory!" } 
                     },
                     {
@@ -210,12 +249,9 @@ async function handleMatchmaking(body, client, baseCollectionName) {
 }
 
 // --- SERVER ---
-const receiver = http.createServer((req, res) => {
-  res.writeHead(200); res.end('WeTime Bot is running!');
-});
-receiver.listen(process.env.PORT || 3000);
-
+// Since socketMode is FALSE, app.start() now launches the HTTP server for us.
+// We pass the PORT variable so Render can hook into it.
 (async () => {
-  await app.start();
+  await app.start(process.env.PORT || 3000);
   console.log('⚡️ WeTime Bot is running!');
 })();
