@@ -2,7 +2,7 @@ const { App } = require('@slack/bolt');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
-// --- 🔍 DIAGNOSTICS CHECK (Check Logs if App Crashes) ---
+// --- 🔍 DIAGNOSTICS CHECK (Keeps checking logs for safety) ---
 console.log("------------------------------------------------");
 console.log("🔍 STARTUP DIAGNOSTICS:");
 console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
@@ -15,6 +15,9 @@ console.log("------------------------------------------------");
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
+
+// 👇 THE FIX: Tells Firestore to ignore "undefined" fields instead of crashing
+db.settings({ ignoreUndefinedProperties: true }); 
 
 // --- OAUTH INSTALLATION STORE ---
 const installationStore = {
