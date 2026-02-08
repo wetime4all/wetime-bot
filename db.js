@@ -1,50 +1,60 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-// 1. Initialize Supabase
-// These automatically pull the keys you saved in Render earlier
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+// ✅ CONFIG: Ensure this matches your Table Name in Supabase
+const INSTALL_TABLE = 'slack_installations'; 
 
 module.exports = {
+
   /* ------------------------------------------------------------------
-     1. AUTH & TEAMS (The "Keys")
+     1. AUTH & TEAMS (🔴 UPDATED to fix 'not_authed')
      ------------------------------------------------------------------ */
   
-  // Save a new team when they install the app
+  // We switched this to save the WHOLE installation object as JSON.
+  // This ensures Slack has every single permission it needs without getting confused.
   saveInstall: async (installation) => {
     const { error } = await supabase
-      .from('slack_installations')
-      .upsert({
-        team_id: installation.team.id,
-        team_name: installation.team.name,
-        bot_token: installation.bot.token,
-        bot_id: installation.bot.id,
-        bot_user_id: installation.bot.userId,
-        installed_at: new Date()
+      .from(INSTALL_TABLE)
+      .upsert({ 
+        team_id: installation.team.id, 
+        data: installation // <--- This is the magic fix
       });
-    
+
     if (error) console.error('Error saving install:', error);
-    return !error;
+    
+    // Optional: Also save the admin user
+    if (installation.user && installation.user.id) {
+       await module.exports.saveUser(installation.user.id, installation.team.id);
+    }
   },
 
-  // Get a team's tokens so the bot can reply
   getInstall: async (teamId) => {
     const { data, error } = await supabase
-      .from('slack_installations')
-      .select('*')
+      .from(INSTALL_TABLE)
+      .select('data')
       .eq('team_id', teamId)
       .single();
 
-    if (error) console.error('Error fetching install:', error);
-    return data;
+    if (error) return null;
+    
+    // 🛠️ Unwrap the JSON so Slack can read it
+    return data ? data.data : null;
   },
 
   /* ------------------------------------------------------------------
-     2. USERS & DIRECTORY
+     2. USERS & DIRECTORY (🟢 KEPT AS IS)
      ------------------------------------------------------------------ */
 
-  // Get a user (or create them if new)
+  // This code is great. We added the 'saveUser' helper for simple tracking too.
+  saveUser: async (userId, teamId) => {
+    const { error } = await supabase
+      .from('users')
+      .upsert({ id: userId, team_id: teamId });
+    if (error) console.error('Error saving user:', error);
+  },
+
   getUser: async (userId, teamId) => {
     let { data: user } = await supabase
       .from('users')
@@ -53,6 +63,7 @@ module.exports = {
       .single();
 
     if (!user) {
+      // Create new user if they don't exist
       const { data: newUser } = await supabase
         .from('users')
         .insert({ id: userId, team_id: teamId, credits: 0 })
@@ -63,54 +74,55 @@ module.exports = {
     return user;
   },
 
-  // Save Directory Info (Department, Interests)
   updateProfile: async (userId, updates) => {
-    await supabase
-      .from('users')
-      .update(updates) // e.g. { department: 'Sales', interests: ['Skiing'] }
-      .eq('id', userId);
+    await supabase.from('users').update(updates).eq('id', userId);
   },
 
   /* ------------------------------------------------------------------
-     3. COFFEE CHATS (The Queue)
+     3. SPEED COFFEE (🔴 UPDATED to match your Database)
      ------------------------------------------------------------------ */
 
+  // Removed 'status' because your current table doesn't have that column.
+  // Being in the table *implies* you are waiting.
   addToMatchQueue: async (userId, teamId, channelId) => {
-    // Remove any old waiting requests first
+    // 1. Clear old requests
     await supabase.from('match_queue').delete().eq('user_id', userId);
 
-    await supabase
+    // 2. Add to line
+    const { error } = await supabase
       .from('match_queue')
-      .insert({
-        user_id: userId,
-        team_id: teamId,
+      .upsert({ 
+        user_id: userId, 
+        team_id: teamId, 
         channel_id: channelId,
-        status: 'waiting'
+        joined_at: new Date().toISOString()
       });
+      
+    if (error) console.error("Queue Error:", error);
   },
 
-  findMatch: async (teamId, currentUserId) => {
-    // Find someone else in the SAME team who is 'waiting'
-    const { data } = await supabase
+  findMatch: async (teamId, myUserId) => {
+    const { data: queue, error } = await supabase
       .from('match_queue')
       .select('*')
       .eq('team_id', teamId)
-      .neq('user_id', currentUserId)
-      .eq('status', 'waiting')
-      .limit(1)
-      .single();
+      .neq('user_id', myUserId)
+      .order('joined_at', { ascending: true }) // First come, first served
+      .limit(1);
 
-    if (data) {
-      // Remove both users from the queue so they don't get matched again
-      await supabase.from('match_queue').delete().eq('id', data.id);
-      await supabase.from('match_queue').delete().eq('user_id', currentUserId);
-      return data.user_id; // Return the match's ID
-    }
-    return null;
+    if (error || !queue || queue.length === 0) return null;
+
+    const partner = queue[0];
+    
+    // Remove BOTH people from the queue
+    await supabase.from('match_queue').delete().eq('user_id', partner.user_id);
+    await supabase.from('match_queue').delete().eq('user_id', myUserId);
+
+    return partner.user_id;
   },
 
   /* ------------------------------------------------------------------
-     4. ARCADE (High Scores)
+     4. ARCADE (🟢 KEPT AS IS)
      ------------------------------------------------------------------ */
 
   saveScore: async (userId, teamId, gameType, score) => {
