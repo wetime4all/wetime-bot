@@ -1,72 +1,38 @@
 const { App } = require('@slack/bolt');
-const admin = require('firebase-admin');
 require('dotenv').config();
 
-// --- 🔍 STARTUP DIAGNOSTICS (Check Logs if App Crashes) ---
+// 👇 IMPORT YOUR NEW DATABASE TOOL
+const db = require('./db'); 
+
+// --- 🔍 STARTUP DIAGNOSTICS ---
 console.log("------------------------------------------------");
 console.log("🔍 STARTUP DIAGNOSTICS:");
-console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
-console.log(`2. SLACK_CLIENT_SECRET: ${process.env.SLACK_CLIENT_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
-console.log(`3. SLACK_SIGNING_SECRET:${process.env.SLACK_SIGNING_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
-console.log(`4. SLACK_STATE_SECRET:  ${process.env.SLACK_STATE_SECRET ? '✅ Found' : '❌ MISSING (Check Render Env)'}`);
+console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING'}`);
+console.log(`2. SUPABASE_URL:        ${process.env.SUPABASE_URL ? '✅ Found' : '❌ MISSING'}`);
 console.log("------------------------------------------------");
 
-// --- CONFIG ---
-const serviceAccount = require('./serviceAccountKey.json');
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
-
-// 👇 THE FIX: Tells Firestore to ignore "undefined" fields instead of crashing
-db.settings({ ignoreUndefinedProperties: true }); 
-
-// --- OAUTH INSTALLATION STORE (DEBUG VERSION) ---
+// --- OAUTH INSTALLATION STORE (SUPABASE VERSION) ---
 const installationStore = {
   storeInstallation: async (installation) => {
-    try {
-      console.log("📝 STARTING SAVE: Trying to save token to database...");
-      
-      // 1. Determine the ID (Team ID or Enterprise ID)
-      if (installation.isEnterpriseInstall && installation.enterprise !== undefined) {
-        await db.collection('installations').doc(installation.enterprise.id).set(installation);
-        console.log("✅ SUCCESS: Saved Enterprise Token!");
-      } else if (installation.team !== undefined) {
-        await db.collection('installations').doc(installation.team.id).set(installation);
-        console.log("✅ SUCCESS: Saved Team Token for " + installation.team.id);
-      } else {
-        throw new Error('❌ DATA ERROR: Installation data missing team/enterprise ID');
-      }
-    } catch (error) {
-      console.error("🔥 DATABASE ERROR:", error); // <--- THIS WILL SHOW THE REAL BUG IN LOGS
-      throw new Error("Failed to save installation to database");
+    // 1. Save the token to Supabase
+    if (installation.team !== undefined) {
+      await db.saveInstall(installation);
+      console.log("✅ SUCCESS: Saved Team Token for " + installation.team.id);
+      return;
     }
+    throw new Error('❌ DATA ERROR: Installation data missing team ID');
   },
   fetchInstallation: async (installQuery) => {
-    try {
-      // 2. Fetch the token from Firestore
-      if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
-        const doc = await db.collection('installations').doc(installQuery.enterpriseId).get();
-        return doc.data();
-      }
-      if (installQuery.teamId !== undefined) {
-        const doc = await db.collection('installations').doc(installQuery.teamId).get();
-        return doc.data();
-      }
-      throw new Error('Failed fetching installation');
-    } catch (error) {
-      console.error("🔥 FETCH ERROR:", error);
-      throw new Error("Failed to fetch installation");
+    // 2. Fetch the token from Supabase
+    if (installQuery.teamId !== undefined) {
+      const data = await db.getInstall(installQuery.teamId);
+      return data;
     }
+    throw new Error('Failed fetching installation');
   },
   deleteInstallation: async (installQuery) => {
-    try {
-      if (installQuery.isEnterpriseInstall && installQuery.enterpriseId !== undefined) {
-        await db.collection('installations').doc(installQuery.enterpriseId).delete();
-      } else if (installQuery.teamId !== undefined) {
-        await db.collection('installations').doc(installQuery.teamId).delete();
-      }
-    } catch (error) {
-      console.error("🔥 DELETE ERROR:", error);
-    }
+    // We can implement delete later if needed
+    console.log("Delete requested for", installQuery.teamId);
   }
 };
 
@@ -78,7 +44,7 @@ const app = new App({
   stateSecret: process.env.SLACK_STATE_SECRET,
   scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
   installationStore: installationStore,
-  socketMode: false // Must be FALSE for Public Distribution
+  socketMode: false 
 });
 
 // --- DASHBOARD UI ---
@@ -90,21 +56,18 @@ const getDashboardBlocks = (userId) => {
     { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
     { type: "divider" },
     { type: "actions", elements: [
-        // Button 1: Speed Coffee
         { 
           type: "button", 
           text: { type: "plain_text", text: "☕ Speed Coffee" }, 
           style: "primary", 
           action_id: "btn_speed_coffee" 
         },
-        // Button 2: Arcade
         { 
           type: "button", 
           text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
           url: `${myAppUrl}/games`, 
           action_id: "btn_arcade_link" 
         },
-        // Button 3: MeTime
         { 
           type: "button", 
           text: { type: "plain_text", text: "🧘 MeTime" }, 
@@ -142,136 +105,77 @@ app.action('btn_people_directory', async ({ ack }) => { await ack(); });
 
 app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await ack();
-  await handleMatchmaking(body, client, 'match_queue');
+  await handleMatchmaking(body, client);
 });
 
 
-// --- SHARED MATCHMAKING LOGIC ---
-async function handleMatchmaking(body, client, baseCollectionName) {
+// --- NEW CLEAN MATCHMAKING LOGIC (SUPABASE) ---
+async function handleMatchmaking(body, client) {
   const userId = body.user.id;
   const teamId = body.team.id; 
 
-  // 1. CREATE SECURE QUEUE NAME
-  const collectionName = `${baseCollectionName}_${teamId}`;
-  const queueRef = db.collection(collectionName);
+  try {
+    // 1. Put me in the queue
+    // (This uses the function we wrote in db.js)
+    await db.addToMatchQueue(userId, teamId, body.channel?.id || 'direct_message');
 
-  // 2. Calculate "Stale Time" (30 minutes ago)
-  const staleTimeThreshold = new Date(Date.now() - 30 * 60 * 1000);
+    // 2. Look for a partner
+    // (This automatically searches ONLY within my team)
+    const partnerId = await db.findMatch(teamId, userId);
 
-  // 3. Check the waiting list
-  const snapshot = await queueRef.orderBy('joinedAt', 'asc').get();
-  
-  let partnerId = null;
-  let partnerDocId = null;
+    if (partnerId) {
+       // --- MATCH FOUND! ---
+       // Open a group message with both users
+       const result = await client.conversations.open({
+           users: `${userId},${partnerId}`
+       });
 
-  // 4. Loop through to find a VALID partner
-  for (const doc of snapshot.docs) {
-    const data = doc.data();
-    if (data.userId === userId) continue;
+       if (result.ok) {
+           const groupChannelId = result.channel.id;
+           
+           await client.chat.postMessage({
+               channel: groupChannelId,
+               text: "🎉 *It's a Match!*",
+               blocks: [
+                   { type: "header", text: { type: "plain_text", text: "🎉 It's a Match!" } },
+                   { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
+                   { type: "divider" },
+                   { type: "section", text: { type: "mrkdwn", text: "Say hi and take a 15-min break!" } }
+               ]
+           });
+       }
 
-    const joinedAt = data.joinedAt.toDate();
-    if (joinedAt < staleTimeThreshold) {
-        console.log(`User ${data.userId} is stale. Removing from queue.`);
-        await queueRef.doc(doc.id).delete();
-        continue; 
+    } else {
+       // --- NO MATCH YET ---
+       // Send the "Waiting" message to just the user
+       await client.chat.postMessage({ 
+         channel: userId, 
+         text: "You are in the queue! 🕒 Waiting for a partner...",
+         blocks: [
+             { type: "section", text: { type: "mrkdwn", text: "🕒 *You are in the queue!*" } },
+             { type: "section", text: { type: "mrkdwn", text: "We're looking for a partner in your company." } },
+             { type: "divider" },
+             { 
+                 type: "section", 
+                 text: { type: "mrkdwn", text: "🎮 *While you wait...*\nWhy not play a quick solo game?" },
+                 accessory: {
+                     type: "button",
+                     text: { type: "plain_text", text: "Play Solo Game 🕹️" },
+                     url: "https://wetime.lovable.app/games",
+                     action_id: "btn_solo_game"
+                 }
+             }
+         ]
+       });
     }
 
-    partnerId = data.userId;
-    partnerDocId = doc.id;
-    break; 
-  }
-
-  if (!partnerId) {
-    // --- NO MATCH FOUND: ADD TO QUEUE ---
-    await queueRef.doc(userId).set({
-      userId: userId,
-      joinedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    
-    // Send "Wait" message
-    await client.chat.postMessage({ 
-        channel: userId, 
-        text: "You are in the queue! 🕒 Waiting for a partner...",
-        blocks: [
-            { type: "section", text: { type: "mrkdwn", text: "🕒 *You are in the queue!*" } },
-            { type: "section", text: { type: "mrkdwn", text: "We're looking for a partner. (Valid for 30 mins)" } },
-            { type: "divider" },
-            { 
-                type: "section", 
-                text: { type: "mrkdwn", text: "🎮 *While you wait...*\nWhy not play a quick solo game to warm up?" },
-                accessory: {
-                    type: "button",
-                    text: { type: "plain_text", text: "Play Solo Game 🕹️" },
-                    url: "https://wetime.lovable.app/games",
-                    style: "primary",
-                    action_id: "btn_solo_game"
-                }
-            }
-        ]
-    });
-
-  } else {
-    // --- MATCH FOUND! ---
-    await queueRef.doc(partnerDocId).delete();
-    await queueRef.doc(userId).delete(); 
-
-    try {
-        const result = await client.conversations.open({
-            users: `${userId},${partnerId}`
-        });
-
-        if (result.ok) {
-            const groupChannelId = result.channel.id;
-            
-            // 3. Send the Match Message
-            await client.chat.postMessage({
-                channel: groupChannelId,
-                text: "🎉 *It's a Match!*",
-                blocks: [
-                    { type: "header", text: { type: "plain_text", text: "🎉 It's a Match!" } },
-                    { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
-                    { type: "divider" },
-                    { 
-                        type: "section", 
-                        text: { type: "mrkdwn", text: "💬 *Step 1: Say Hi*\nSend a message to confirm you're both still free for a break." } 
-                    },
-                    { 
-                        type: "section", 
-                        text: { type: "mrkdwn", text: "🎧 *Step 2: Start Talking*\nOnce you're ready, click the *headphone icon* (usually top right) to start the Huddle." } 
-                    },
-                    { 
-                        type: "section", 
-                        text: { type: "mrkdwn", text: "❄️ *Step 3: Break the Ice (Optional)*\nJump into the arcade or learn more about each other in the directory!" } 
-                    },
-                    {
-                        type: "actions",
-                        elements: [
-                            {
-                                type: "button",
-                                text: { type: "plain_text", text: "🎮 Open Arcade" },
-                                url: "https://wetime.lovable.app/games",
-                                style: "primary",
-                                action_id: "btn_arcade_link"
-                            },
-                            {
-                                type: "button",
-                                text: { type: "plain_text", text: "👤 View People Directory" },
-                                url: "https://wetime.lovable.app/directory", 
-                                action_id: "btn_people_directory"
-                            }
-                        ]
-                    }
-                ]
-            });
-        }
-    } catch (error) {
-        console.error("Error creating match:", error);
-    }
+  } catch (error) {
+    console.error("Matchmaking Error:", error);
   }
 }
 
 // --- SERVER ---
 (async () => {
   await app.start(process.env.PORT || 3000);
-  console.log('⚡️ WeTime Bot is running!');
+  console.log('⚡️ WeTime Bot is running with Supabase!');
 })();
