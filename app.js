@@ -14,7 +14,6 @@ console.log("------------------------------------------------");
 // --- OAUTH INSTALLATION STORE (SUPABASE VERSION) ---
 const installationStore = {
   storeInstallation: async (installation) => {
-    // 1. Save the token to Supabase
     if (installation.team !== undefined) {
       await db.saveInstall(installation);
       console.log("✅ SUCCESS: Saved Team Token for " + installation.team.id);
@@ -23,7 +22,6 @@ const installationStore = {
     throw new Error('❌ DATA ERROR: Installation data missing team ID');
   },
   fetchInstallation: async (installQuery) => {
-    // 2. Fetch the token from Supabase
     if (installQuery.teamId !== undefined) {
       const data = await db.getInstall(installQuery.teamId);
       return data;
@@ -31,7 +29,6 @@ const installationStore = {
     throw new Error('Failed fetching installation');
   },
   deleteInstallation: async (installQuery) => {
-    // We can implement delete later if needed
     console.log("Delete requested for", installQuery.teamId);
   }
 };
@@ -47,32 +44,69 @@ const app = new App({
   socketMode: false 
 });
 
-// --- DASHBOARD UI ---
+// --- DASHBOARD UI (PROFESSIONAL VERSION) ---
 const getDashboardBlocks = (userId) => {
   const myAppUrl = "https://wetime.lovable.app"; 
 
   return [
-    { type: "header", text: { type: "plain_text", text: `Welcome back! 👋` } },
-    { type: "section", text: { type: "mrkdwn", text: `*Status:* Ready to connect 🚀` } },
+    {
+      type: "header",
+      text: { type: "plain_text", text: "WeTime Control Center 🚀" }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Hello <@${userId}>!* Welcome to your company's social hub. Use the tools below to connect with your team.`
+      }
+    },
     { type: "divider" },
-    { type: "actions", elements: [
-        { 
-          type: "button", 
-          text: { type: "plain_text", text: "☕ Speed Coffee" }, 
-          style: "primary", 
-          action_id: "btn_speed_coffee" 
-        },
-        { 
-          type: "button", 
-          text: { type: "plain_text", text: "🎮 WeTime Arcade" }, 
-          url: `${myAppUrl}/games`, 
-          action_id: "btn_arcade_link" 
-        },
-        { 
-          type: "button", 
-          text: { type: "plain_text", text: "🧘 MeTime" }, 
-          url: `${myAppUrl}/metime`,
-          action_id: "btn_metime_link"
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "☕ *Speed Coffee*\nGet paired with a random teammate for a 15-minute break. Great for meeting people outside your immediate circle!"
+      },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "Join Queue" },
+        style: "primary",
+        action_id: "btn_speed_coffee"
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "🎮 *WeTime Arcade*\nCompete in quick browser games and climb the company leaderboard."
+      },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "Open Arcade" },
+        url: `${myAppUrl}/games`,
+        action_id: "btn_arcade_link"
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "🧘 *MeTime*\nTake a moment for guided wellness and personal reflection."
+      },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "MeTime" },
+        url: `${myAppUrl}/metime`,
+        action_id: "btn_metime_link"
+      }
+    },
+    { type: "divider" },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "💡 *Pro-tip:* Type `/wetime` in any channel to pull up this menu instantly."
         }
       ]
     }
@@ -83,6 +117,7 @@ const getDashboardBlocks = (userId) => {
 
 app.event('app_home_opened', async ({ event, client }) => {
   try {
+      console.log(`🏠 App Home opened by user: ${event.user}`);
       await client.views.publish({
         user_id: event.user,
         view: { type: 'home', blocks: getDashboardBlocks(event.user) }
@@ -108,31 +143,22 @@ app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await handleMatchmaking(body, client);
 });
 
-
 // --- NEW CLEAN MATCHMAKING LOGIC (SUPABASE) ---
 async function handleMatchmaking(body, client) {
   const userId = body.user.id;
   const teamId = body.team.id; 
 
   try {
-    // 1. Put me in the queue
-    // (This uses the function we wrote in db.js)
     await db.addToMatchQueue(userId, teamId, body.channel?.id || 'direct_message');
-
-    // 2. Look for a partner
-    // (This automatically searches ONLY within my team)
     const partnerId = await db.findMatch(teamId, userId);
 
     if (partnerId) {
-       // --- MATCH FOUND! ---
-       // Open a group message with both users
        const result = await client.conversations.open({
            users: `${userId},${partnerId}`
        });
 
        if (result.ok) {
            const groupChannelId = result.channel.id;
-           
            await client.chat.postMessage({
                channel: groupChannelId,
                text: "🎉 *It's a Match!*",
@@ -144,10 +170,7 @@ async function handleMatchmaking(body, client) {
                ]
            });
        }
-
     } else {
-       // --- NO MATCH YET ---
-       // Send the "Waiting" message to just the user
        await client.chat.postMessage({ 
          channel: userId, 
          text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -168,7 +191,6 @@ async function handleMatchmaking(body, client) {
          ]
        });
     }
-
   } catch (error) {
     console.error("Matchmaking Error:", error);
   }
