@@ -1,7 +1,7 @@
 const { App } = require('@slack/bolt');
 require('dotenv').config();
 
-// 👇 IMPORT YOUR NEW DATABASE TOOL
+// 👇 IMPORT YOUR DATABASE TOOL
 const db = require('./db'); 
 
 // --- 🔍 STARTUP DIAGNOSTICS ---
@@ -46,7 +46,8 @@ const app = new App({
 
 // --- DASHBOARD UI (PROFESSIONAL VERSION) ---
 const getDashboardBlocks = (userId) => {
-  const myAppUrl = "https://wetime.lovable.app"; 
+  // ⚡️ UPDATED: Points to your new App Domain
+  const myAppUrl = "https://wetimeapp.com"; 
 
   return [
     {
@@ -83,7 +84,7 @@ const getDashboardBlocks = (userId) => {
       accessory: {
         type: "button",
         text: { type: "plain_text", text: "Open Arcade" },
-        url: `${myAppUrl}/games`,
+        url: `${myAppUrl}/games`, // uses wetimeapp.com
         action_id: "btn_arcade_link"
       }
     },
@@ -96,7 +97,7 @@ const getDashboardBlocks = (userId) => {
       accessory: {
         type: "button",
         text: { type: "plain_text", text: "MeTime" },
-        url: `${myAppUrl}/metime`,
+        url: `${myAppUrl}/metime`, // uses wetimeapp.com
         action_id: "btn_metime_link"
       }
     },
@@ -118,9 +119,12 @@ const getDashboardBlocks = (userId) => {
 app.event('app_home_opened', async ({ event, client }) => {
   try {
       console.log(`🏠 App Home opened by user: ${event.user}`);
+      // Note: getDashboardBlocks requires the userId to generate the blocks
+      const blocks = getDashboardBlocks(event.user);
+      
       await client.views.publish({
         user_id: event.user,
-        view: { type: 'home', blocks: getDashboardBlocks(event.user) }
+        view: { type: 'home', blocks: blocks }
       });
   } catch (error) {
       console.error("Error publishing home view:", error);
@@ -143,16 +147,19 @@ app.action('btn_speed_coffee', async ({ body, ack, client }) => {
   await handleMatchmaking(body, client);
 });
 
-// --- NEW CLEAN MATCHMAKING LOGIC (SUPABASE) ---
+// --- MATCHMAKING LOGIC (SUPABASE) ---
 async function handleMatchmaking(body, client) {
   const userId = body.user.id;
   const teamId = body.team.id; 
 
   try {
+    // Add user to queue
     await db.addToMatchQueue(userId, teamId, body.channel?.id || 'direct_message');
+    // Try to find a match immediately
     const partnerId = await db.findMatch(teamId, userId);
 
     if (partnerId) {
+       // Open a group DM
        const result = await client.conversations.open({
            users: `${userId},${partnerId}`
        });
@@ -171,6 +178,7 @@ async function handleMatchmaking(body, client) {
            });
        }
     } else {
+       // No match found -> Send "Waiting" message with Solo Game link
        await client.chat.postMessage({ 
          channel: userId, 
          text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -184,7 +192,7 @@ async function handleMatchmaking(body, client) {
                  accessory: {
                      type: "button",
                      text: { type: "plain_text", text: "Play Solo Game 🕹️" },
-                     url: "https://wetime.lovable.app/games",
+                     url: "https://wetimeapp.com/games", // ⚡️ UPDATED LINK
                      action_id: "btn_solo_game"
                  }
              }
