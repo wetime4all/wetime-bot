@@ -168,12 +168,46 @@ async function handleMatchmaking(body, client) {
            const groupChannelId = result.channel.id;
            await client.chat.postMessage({
                channel: groupChannelId,
-               text: "🎉 *It's a Match!*",
+               text: "🎉 It's a Match!", // Fallback notification text
                blocks: [
-                   { type: "header", text: { type: "plain_text", text: "🎉 It's a Match!" } },
-                   { type: "section", text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` } },
+                   {
+                       type: "header",
+                       text: { type: "plain_text", text: "🎉 It's a Match!" }
+                   },
+                   {
+                       type: "section",
+                       text: { type: "mrkdwn", text: `👋 <@${userId}>, meet <@${partnerId}>!` }
+                   },
                    { type: "divider" },
-                   { type: "section", text: { type: "mrkdwn", text: "Say hi and take a 15-min break!" } }
+                   {
+                       type: "section",
+                       text: {
+                           type: "mrkdwn",
+                           text: "*Step 1: Sync Up* 💬\nSend a quick message below to confirm you're both free right now."
+                       }
+                   },
+                   {
+                       type: "section",
+                       text: {
+                           type: "mrkdwn",
+                           text: "*Step 2: Start Talking* 🗣️\nOnce confirmed, click the *Huddle toggle* (headphone icon bottom-left) to start the call."
+                       }
+                   },
+                   {
+                       type: "section",
+                       text: {
+                           type: "mrkdwn",
+                           text: "*Step 3: Play (Optional)* 🎮\nWant to break the ice? Jump into the arcade!"
+                       },
+                       accessory: {
+                           type: "button",
+                           text: { type: "plain_text", text: "Open WeTime Arcade 🕹️" },
+                           // 👇 POINTS TO YOUR NEW APP DOMAIN
+                           url: "https://wetimeapp.com/games", 
+                           style: "primary",
+                           action_id: "btn_arcade_link"
+                       }
+                   }
                ]
            });
        }
