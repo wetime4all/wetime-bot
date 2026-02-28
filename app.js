@@ -39,7 +39,8 @@ const app = new App({
   clientId: process.env.SLACK_CLIENT_ID,
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   stateSecret: process.env.SLACK_STATE_SECRET,
-  scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
+  // 👇 ADDED im:history HERE TO MATCH YOUR DASHBOARD
+  scopes: ['chat:write', 'commands', 'mpim:write', 'im:write', 'im:history'], 
   installationStore: installationStore,
   socketMode: false 
 });
@@ -237,6 +238,14 @@ async function handleMatchmaking(body, client) {
     console.error("Matchmaking Error:", error);
   }
 }
+
+// 👇 ADDED: BASIC MESSAGE LISTENER (To pass Slack Review for im:history)
+app.message(async ({ message, say }) => {
+  // Ignore message edits, deletes, or bot messages to prevent infinite loops
+  if (message.subtype) return;
+
+  await say(`Hi there! 👋 I'm the WeTime bot. To access the Control Center, just type \`/wetime\` anywhere!`);
+});
 
 // --- SERVER ---
 (async () => {
