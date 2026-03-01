@@ -9,22 +9,19 @@ const INSTALL_TABLE = 'slack_installations';
 module.exports = {
 
   /* ------------------------------------------------------------------
-     1. AUTH & TEAMS (🔴 UPDATED to fix 'not_authed')
+     1. AUTH & TEAMS
      ------------------------------------------------------------------ */
   
-  // We switched this to save the WHOLE installation object as JSON.
-  // This ensures Slack has every single permission it needs without getting confused.
   saveInstall: async (installation) => {
     const { error } = await supabase
       .from(INSTALL_TABLE)
       .upsert({ 
         team_id: installation.team.id, 
-        data: installation // <--- This is the magic fix
+        data: installation 
       });
 
     if (error) console.error('Error saving install:', error);
     
-    // Optional: Also save the admin user
     if (installation.user && installation.user.id) {
        await module.exports.saveUser(installation.user.id, installation.team.id);
     }
@@ -38,16 +35,27 @@ module.exports = {
       .single();
 
     if (error) return null;
-    
-    // 🛠️ Unwrap the JSON so Slack can read it
     return data ? data.data : null;
   },
 
+  // 🛠️ NEW: FUNCTION TO PURGE DATA UPON UNINSTALL
+  deleteInstallation: async (teamId) => {
+    const { error } = await supabase
+      .from(INSTALL_TABLE)
+      .delete()
+      .eq('team_id', teamId);
+
+    if (error) {
+      console.error('Error deleting install:', error);
+      throw error;
+    }
+    return true;
+  },
+
   /* ------------------------------------------------------------------
-     2. USERS & DIRECTORY (🟢 KEPT AS IS)
+     2. USERS & DIRECTORY
      ------------------------------------------------------------------ */
 
-  // This code is great. We added the 'saveUser' helper for simple tracking too.
   saveUser: async (userId, teamId) => {
     const { error } = await supabase
       .from('users')
@@ -63,7 +71,6 @@ module.exports = {
       .single();
 
     if (!user) {
-      // Create new user if they don't exist
       const { data: newUser } = await supabase
         .from('users')
         .insert({ id: userId, team_id: teamId, credits: 0 })
@@ -79,16 +86,12 @@ module.exports = {
   },
 
   /* ------------------------------------------------------------------
-     3. SPEED COFFEE (🔴 UPDATED to match your Database)
+     3. SPEED COFFEE
      ------------------------------------------------------------------ */
 
-  // Removed 'status' because your current table doesn't have that column.
-  // Being in the table *implies* you are waiting.
   addToMatchQueue: async (userId, teamId, channelId) => {
-    // 1. Clear old requests
     await supabase.from('match_queue').delete().eq('user_id', userId);
 
-    // 2. Add to line
     const { error } = await supabase
       .from('match_queue')
       .upsert({ 
@@ -107,14 +110,13 @@ module.exports = {
       .select('*')
       .eq('team_id', teamId)
       .neq('user_id', myUserId)
-      .order('joined_at', { ascending: true }) // First come, first served
+      .order('joined_at', { ascending: true }) 
       .limit(1);
 
     if (error || !queue || queue.length === 0) return null;
 
     const partner = queue[0];
     
-    // Remove BOTH people from the queue
     await supabase.from('match_queue').delete().eq('user_id', partner.user_id);
     await supabase.from('match_queue').delete().eq('user_id', myUserId);
 
@@ -122,7 +124,7 @@ module.exports = {
   },
 
   /* ------------------------------------------------------------------
-     4. ARCADE (🟢 KEPT AS IS)
+     4. ARCADE
      ------------------------------------------------------------------ */
 
   saveScore: async (userId, teamId, gameType, score) => {
