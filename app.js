@@ -53,7 +53,7 @@ const app = new App({
         try {
           await client.chat.postMessage({
             channel: installation.user.id,
-            text: "🚀 Thanks for adding WeTime to your workspace! To get started and view your Control Center, just type `/wetime` in any channel or right here in this DM."
+            text: "🚀 Thanks for adding WeTime to your workspace! To get started and view your Control Center, simply type `/wetime` in any channel or DM, or click the *Home* tab at the top of this screen!"
           });
         } catch (error) {
           console.error("Failed to send welcome message:", error);
