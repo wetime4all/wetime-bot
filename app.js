@@ -1,4 +1,5 @@
 const { App } = require('@slack/bolt');
+const { WebClient } = require('@slack/web-api'); // 👇 ADDED FOR WELCOME DM
 require('dotenv').config();
 
 // 👇 IMPORT YOUR DATABASE TOOL
@@ -41,12 +42,39 @@ const app = new App({
   stateSecret: process.env.SLACK_STATE_SECRET,
   scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
   installationStore: installationStore,
-  socketMode: false 
+  socketMode: false,
+  
+  // 👇 ADDED: The Onboarding Flow for Slack App Directory Review
+  installerOptions: {
+    callbackOptions: {
+      success: async (installation, installOptions, req, res) => {
+        // 1. Send the required Welcome DM to the person who installed it
+        const client = new WebClient(installation.bot.token);
+        try {
+          await client.chat.postMessage({
+            channel: installation.user.id,
+            text: "🚀 Thanks for adding WeTime to your workspace! To get started and view your Control Center, just type `/wetime` in any channel or right here in this DM."
+          });
+        } catch (error) {
+          console.error("Failed to send welcome message:", error);
+        }
+
+        // 2. Redirect the user back to your website instead of a blank page
+        res.writeHead(302, { Location: 'https://wetimeapp.com' }); 
+        res.end();
+      },
+      failure: (error, installOptions, req, res) => {
+        // Redirect to an error page if they cancel
+        res.writeHead(302, { Location: 'https://wetimeapp.com/error' }); 
+        res.end();
+      }
+    }
+  }
 });
 
 // --- DASHBOARD UI (PROFESSIONAL VERSION) ---
 const getDashboardBlocks = (userId) => {
-  // ⚡️ UPDATED: Points to your new App Domain
+  // ⚡️ UPDATED: Points to your App Domain
   const myAppUrl = "https://wetimeapp.com"; 
 
   return [
