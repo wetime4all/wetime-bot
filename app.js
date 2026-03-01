@@ -8,8 +8,8 @@ const db = require('./db');
 // --- 🔍 STARTUP DIAGNOSTICS ---
 console.log("------------------------------------------------");
 console.log("🔍 STARTUP DIAGNOSTICS:");
-console.log(`1. SLACK_CLIENT_ID:     ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING'}`);
-console.log(`2. SUPABASE_URL:        ${process.env.SUPABASE_URL ? '✅ Found' : '❌ MISSING'}`);
+console.log(`1. SLACK_CLIENT_ID:      ${process.env.SLACK_CLIENT_ID ? '✅ Found' : '❌ MISSING'}`);
+console.log(`2. SUPABASE_URL:         ${process.env.SUPABASE_URL ? '✅ Found' : '❌ MISSING'}`);
 console.log("------------------------------------------------");
 
 // --- OAUTH INSTALLATION STORE (SUPABASE VERSION) ---
@@ -30,7 +30,9 @@ const installationStore = {
     throw new Error('Failed fetching installation');
   },
   deleteInstallation: async (installQuery) => {
-    console.log("Delete requested for", installQuery.teamId);
+    // This handles the internal Bolt cleanup
+    await db.deleteInstallation(installQuery.teamId);
+    console.log("🗑️ Bolt requested deletion for", installQuery.teamId);
   }
 };
 
@@ -41,17 +43,14 @@ const app = new App({
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   stateSecret: process.env.SLACK_STATE_SECRET,
   scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
-  // Note: im:history is NOT included here for a cleaner App Directory review
   installationStore: installationStore,
   socketMode: false,
   
-  // --- ONBOARDING FLOW FOR SLACK APP DIRECTORY ---
   installerOptions: {
     callbackOptions: {
       success: async (installation, installOptions, req, res) => {
         const client = new WebClient(installation.bot.token);
         try {
-          // Send the required Welcome DM to the person who installed it
           await client.chat.postMessage({
             channel: installation.user.id,
             text: "🚀 Thanks for adding WeTime to your workspace! To get started and view your Control Center, simply type `/wetime` in any channel or DM, or click the *Home* tab at the top of this screen!"
@@ -60,12 +59,10 @@ const app = new App({
           console.error("Failed to send welcome message:", error);
         }
 
-        // Redirect the user back to the Slack App directly
         res.writeHead(302, { Location: `slack://app?team=${installation.team.id}&id=${installation.appId}` }); 
         res.end();
       },
       failure: (error, installOptions, req, res) => {
-        // Redirect to your website if they cancel or an error occurs
         res.writeHead(302, { Location: 'https://wetimeapp.com/error' }); 
         res.end();
       }
@@ -153,6 +150,17 @@ app.event('app_home_opened', async ({ event, client }) => {
       });
   } catch (error) {
       console.error("Error publishing home view:", error);
+  }
+});
+
+// 🛠️ NEW: AUTOMATIC UNINSTALL HANDLER
+app.event('app_uninstalled', async ({ body }) => {
+  const teamId = body.team_id;
+  try {
+    await db.deleteInstallation(teamId);
+    console.log(`⚠️ WeTime was uninstalled from team ${teamId}. Data purged.`);
+  } catch (error) {
+    console.error("Error during uninstallation cleanup:", error);
   }
 });
 
