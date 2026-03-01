@@ -1,5 +1,5 @@
 const { App } = require('@slack/bolt');
-const { WebClient } = require('@slack/web-api'); // 👇 ADDED FOR WELCOME DM
+const { WebClient } = require('@slack/web-api');
 require('dotenv').config();
 
 // 👇 IMPORT YOUR DATABASE TOOL
@@ -41,16 +41,17 @@ const app = new App({
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   stateSecret: process.env.SLACK_STATE_SECRET,
   scopes: ['chat:write', 'commands', 'mpim:write', 'im:write'], 
+  // Note: im:history is NOT included here for a cleaner App Directory review
   installationStore: installationStore,
   socketMode: false,
   
-  // 👇 ADDED: The Onboarding Flow for Slack App Directory Review
+  // --- ONBOARDING FLOW FOR SLACK APP DIRECTORY ---
   installerOptions: {
     callbackOptions: {
       success: async (installation, installOptions, req, res) => {
-        // 1. Send the required Welcome DM to the person who installed it
         const client = new WebClient(installation.bot.token);
         try {
+          // Send the required Welcome DM to the person who installed it
           await client.chat.postMessage({
             channel: installation.user.id,
             text: "🚀 Thanks for adding WeTime to your workspace! To get started and view your Control Center, simply type `/wetime` in any channel or DM, or click the *Home* tab at the top of this screen!"
@@ -59,12 +60,12 @@ const app = new App({
           console.error("Failed to send welcome message:", error);
         }
 
-        // 2. Redirect the user back to your website instead of a blank page
-        res.writeHead(302, { Location: 'https://wetimeapp.com' }); 
+        // Redirect the user back to the Slack App directly
+        res.writeHead(302, { Location: `slack://app?team=${installation.team.id}&id=${installation.appId}` }); 
         res.end();
       },
       failure: (error, installOptions, req, res) => {
-        // Redirect to an error page if they cancel
+        // Redirect to your website if they cancel or an error occurs
         res.writeHead(302, { Location: 'https://wetimeapp.com/error' }); 
         res.end();
       }
@@ -72,9 +73,8 @@ const app = new App({
   }
 });
 
-// --- DASHBOARD UI (PROFESSIONAL VERSION) ---
+// --- DASHBOARD UI ---
 const getDashboardBlocks = (userId) => {
-  // ⚡️ UPDATED: Points to your App Domain
   const myAppUrl = "https://wetimeapp.com"; 
 
   return [
@@ -112,7 +112,7 @@ const getDashboardBlocks = (userId) => {
       accessory: {
         type: "button",
         text: { type: "plain_text", text: "Open Arcade" },
-        url: `${myAppUrl}/games`, // uses wetimeapp.com
+        url: `${myAppUrl}/games`,
         action_id: "btn_arcade_link"
       }
     },
@@ -125,7 +125,7 @@ const getDashboardBlocks = (userId) => {
       accessory: {
         type: "button",
         text: { type: "plain_text", text: "MeTime" },
-        url: `${myAppUrl}/metime`, // uses wetimeapp.com
+        url: `${myAppUrl}/metime`,
         action_id: "btn_metime_link"
       }
     },
@@ -146,10 +146,7 @@ const getDashboardBlocks = (userId) => {
 
 app.event('app_home_opened', async ({ event, client }) => {
   try {
-      console.log(`🏠 App Home opened by user: ${event.user}`);
-      // Note: getDashboardBlocks requires the userId to generate the blocks
       const blocks = getDashboardBlocks(event.user);
-      
       await client.views.publish({
         user_id: event.user,
         view: { type: 'home', blocks: blocks }
@@ -181,13 +178,10 @@ async function handleMatchmaking(body, client) {
   const teamId = body.team.id; 
 
   try {
-    // Add user to queue
     await db.addToMatchQueue(userId, teamId, body.channel?.id || 'direct_message');
-    // Try to find a match immediately
     const partnerId = await db.findMatch(teamId, userId);
 
     if (partnerId) {
-       // Open a group DM
        const result = await client.conversations.open({
            users: `${userId},${partnerId}`
        });
@@ -196,7 +190,7 @@ async function handleMatchmaking(body, client) {
            const groupChannelId = result.channel.id;
            await client.chat.postMessage({
                channel: groupChannelId,
-               text: "🎉 It's a Match!", // Fallback notification text
+               text: "🎉 It's a Match!",
                blocks: [
                    {
                        type: "header",
@@ -230,7 +224,6 @@ async function handleMatchmaking(body, client) {
                        accessory: {
                            type: "button",
                            text: { type: "plain_text", text: "Open WeTime Arcade 🕹️" },
-                           // 👇 POINTS TO YOUR NEW APP DOMAIN
                            url: "https://wetimeapp.com/games", 
                            style: "primary",
                            action_id: "btn_arcade_link"
@@ -240,7 +233,6 @@ async function handleMatchmaking(body, client) {
            });
        }
     } else {
-       // No match found -> Send "Waiting" message with Solo Game link
        await client.chat.postMessage({ 
          channel: userId, 
          text: "You are in the queue! 🕒 Waiting for a partner...",
@@ -254,7 +246,7 @@ async function handleMatchmaking(body, client) {
                  accessory: {
                      type: "button",
                      text: { type: "plain_text", text: "Play Solo Game 🕹️" },
-                     url: "https://wetimeapp.com/games", // ⚡️ UPDATED LINK
+                     url: "https://wetimeapp.com/games",
                      action_id: "btn_solo_game"
                  }
              }
